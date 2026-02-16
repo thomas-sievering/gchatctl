@@ -74,6 +74,20 @@ gchatctl chat messages send --profile work --space spaces/AAA... --text "hello"
 gchatctl chat messages with --profile work --email user@company.com --limit 10
 ```
 
+## JSON Output
+
+- `--json` now outputs compact JSON by default (agent-friendly).
+- Set `GCHATCTL_JSON_PRETTY=1` to switch to pretty JSON for debugging.
+
+```powershell
+# compact JSON
+gchatctl chat messages with --profile work --email user@company.com --limit 10 --json
+
+# pretty JSON
+$env:GCHATCTL_JSON_PRETTY = "1"
+gchatctl chat messages with --profile work --email user@company.com --limit 10 --json
+```
+
 ## Files and Storage
 
 `gchatctl` stores config/tokens in your user config dir:

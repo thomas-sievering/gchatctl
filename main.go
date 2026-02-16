@@ -328,13 +328,11 @@ func runChatDMFind(args []string) error {
 		return err
 	}
 	if *jsonOut {
-		b, _ := json.MarshalIndent(map[string]any{
+		return printJSON(map[string]any{
 			"profile": selectedProfile,
 			"target":  targetUser,
 			"space":   space,
-		}, "", "  ")
-		fmt.Println(string(b))
-		return nil
+		})
 	}
 	fmt.Printf("Direct message with %s: %s\n", targetUser, space.Name)
 	return nil
@@ -398,9 +396,7 @@ func runChatSpacesList(args []string) error {
 			"count":   len(items),
 			"spaces":  items,
 		}
-		b, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Println(string(b))
-		return nil
+		return printJSON(out)
 	}
 
 	if len(items) == 0 {
@@ -486,9 +482,7 @@ func runChatSpacesUnread(args []string) error {
 			"count":   len(unread),
 			"spaces":  unread,
 		}
-		b, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Println(string(b))
-		return nil
+		return printJSON(out)
 	}
 	if len(unread) == 0 {
 		fmt.Printf("No unread spaces for profile %q\n", selectedProfile)
@@ -563,13 +557,11 @@ func runChatSpacesDM(args []string) error {
 	}
 
 	if *jsonOut {
-		b, _ := json.MarshalIndent(map[string]any{
+		return printJSON(map[string]any{
 			"profile": selectedProfile,
 			"count":   len(out),
 			"dms":     out,
-		}, "", "  ")
-		fmt.Println(string(b))
-		return nil
+		})
 	}
 	if len(out) == 0 {
 		fmt.Printf("No direct-message spaces found for profile %q\n", selectedProfile)
@@ -632,14 +624,12 @@ func runChatSpacesMembers(args []string) error {
 	}
 
 	if *jsonOut {
-		b, _ := json.MarshalIndent(map[string]any{
+		return printJSON(map[string]any{
 			"profile": selectedProfile,
 			"space":   spaceName,
 			"count":   len(out),
 			"members": out,
-		}, "", "  ")
-		fmt.Println(string(b))
-		return nil
+		})
 	}
 	if len(out) == 0 {
 		fmt.Printf("No members found in %s\n", spaceName)
@@ -740,9 +730,7 @@ func runChatUsersAliasesList(args []string) error {
 			"count":   len(aliases),
 			"aliases": aliases,
 		}
-		b, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Println(string(b))
-		return nil
+		return printJSON(out)
 	}
 	if len(aliases) == 0 {
 		fmt.Println("No user aliases configured")
@@ -993,15 +981,13 @@ func runChatUsersAliasesInfer(args []string) error {
 	}
 
 	if *jsonOut {
-		b, _ := json.MarshalIndent(map[string]any{
+		return printJSON(map[string]any{
 			"profile":   selectedProfile,
 			"count":     len(inferredList),
 			"inferred":  inferredList,
 			"applied":   *apply,
 			"overwrote": *force,
-		}, "", "  ")
-		fmt.Println(string(b))
-		return nil
+		})
 	}
 	if len(inferredList) == 0 {
 		fmt.Println("No aliases inferred from recent messages")
@@ -1091,9 +1077,7 @@ func runChatMessagesList(args []string) error {
 			"count":    len(items),
 			"messages": items,
 		}
-		b, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Println(string(b))
-		return nil
+		return printJSON(out)
 	}
 
 	if len(items) == 0 {
@@ -1173,9 +1157,7 @@ func runChatMessagesSend(args []string) error {
 			"space":   spaceName,
 			"message": sent,
 		}
-		b, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Println(string(b))
-		return nil
+		return printJSON(out)
 	}
 	fmt.Printf("Sent message to %s\n", spaceName)
 	if strings.TrimSpace(sent.Name) != "" {
@@ -1247,9 +1229,7 @@ func runChatMessagesWith(args []string) error {
 			"count":    len(items),
 			"messages": items,
 		}
-		b, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Println(string(b))
-		return nil
+		return printJSON(out)
 	}
 	if len(items) == 0 {
 		fmt.Printf("No messages found with %s (%s)\n", targetUser, space.Name)
@@ -1331,9 +1311,7 @@ func runChatMessagesSenders(args []string) error {
 			"count":   len(names),
 			"names":   names,
 		}
-		b, _ := json.MarshalIndent(out, "", "  ")
-		fmt.Println(string(b))
-		return nil
+		return printJSON(out)
 	}
 	if len(names) == 0 {
 		fmt.Printf("No sender names found in %q\n", spaceName)
@@ -1450,8 +1428,9 @@ func runChatMessagesPoll(args []string) error {
 				"count":        len(found),
 				"messages":     found,
 			}
-			b, _ := json.MarshalIndent(out, "", "  ")
-			fmt.Println(string(b))
+			if err := printJSON(out); err != nil {
+				return err
+			}
 		} else {
 			if len(found) == 0 {
 				fmt.Printf("[poll %d/%d] no new messages\n", i+1, *iterations)
@@ -1956,6 +1935,24 @@ func minInt(a, b int) int {
 	return b
 }
 
+func printJSON(v any) error {
+	pretty := strings.TrimSpace(os.Getenv("GCHATCTL_JSON_PRETTY")) == "1"
+	var (
+		b   []byte
+		err error
+	)
+	if pretty {
+		b, err = json.MarshalIndent(v, "", "  ")
+	} else {
+		b, err = json.Marshal(v)
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(b))
+	return nil
+}
+
 func aliasesPath() (string, error) {
 	d, err := configDir()
 	if err != nil {
@@ -2138,9 +2135,7 @@ func runAuthStatus(args []string) error {
 	}
 
 	if *jsonOut {
-		b, _ := json.MarshalIndent(status, "", "  ")
-		fmt.Println(string(b))
-		return nil
+		return printJSON(status)
 	}
 
 	fmt.Printf("Profile: %s\n", selectedProfile)
