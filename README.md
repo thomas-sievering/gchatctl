@@ -1,8 +1,8 @@
 # gchatctl
 
-[![Release](https://img.shields.io/github/v/release/thomas-sievering/gchatctl?label=release)](https://github.com/thomas-sievering/gchatctl/releases)
-[![CI](https://img.shields.io/github/actions/workflow/status/thomas-sievering/gchatctl/ci.yml?label=ci)](https://github.com/thomas-sievering/gchatctl/actions)
-[![Go Version](https://img.shields.io/badge/go-1.26%2B-00ADD8?logo=go)](https://go.dev/)
+[![CI](https://github.com/thomas-sievering/gchatctl/actions/workflows/ci.yml/badge.svg)](https://github.com/thomas-sievering/gchatctl/actions/workflows/ci.yml)
+[![Go Version](https://img.shields.io/badge/go-1.23%2B-00ADD8?logo=go)](https://go.dev/)
+[![Release](https://img.shields.io/badge/release-not%20published-lightgrey)](https://github.com/thomas-sievering/gchatctl/releases)
 [![Platforms](https://img.shields.io/badge/platforms-windows%20%7C%20linux%20%7C%20macOS-6f42c1)](#install)
 [![License](https://img.shields.io/badge/license-MIT-green)](./LICENSE)
 
