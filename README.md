@@ -8,9 +8,7 @@
 
 Google Chat CLI for agents.
 
-Fast auth, direct-message lookup by email, read/send, polling, and unread checks.
-
-> If your repo name differs from `gchatctl`, update badge links accordingly.
+Fast auth, read messages, and send messages.
 
 ## Quick Start
 
@@ -21,14 +19,14 @@ gchatctl auth setup
 # 2) Login (recommended scopes bundle)
 gchatctl auth login --profile work --all-scopes
 
-# 3) Find DM space with a person by email
-gchatctl chat dm find --profile work --email simon.hartstein@bmtg.ch
+# 3) List your spaces
+gchatctl chat spaces list --profile work --limit 20
 
-# 4) Read last 10 messages (both sides)
-gchatctl chat messages with --profile work --email simon.hartstein@bmtg.ch --limit 10
+# 4) Read last 10 DM messages with a person
+gchatctl chat messages with --profile work --email user@company.com --limit 10
 
 # 5) Send message
-gchatctl chat messages send --profile work --email simon.hartstein@bmtg.ch --text "yoyo"
+gchatctl chat messages send --profile work --email user@company.com --text "hello"
 ```
 
 ## Install
@@ -45,7 +43,7 @@ go build -o gchatctl.exe .
 
 End users do **not** need Go if you ship the binary.
 
-## Core Commands
+## Commands
 
 ### Auth
 
@@ -56,39 +54,24 @@ gchatctl auth status --profile work --json
 gchatctl auth logout --profile work
 ```
 
-### DM / Messages
+### Spaces
 
 ```powershell
-# Resolve a direct-message space by person
-gchatctl chat dm find --profile work --email user@company.com
+gchatctl chat spaces list --profile work --limit 100
+```
 
-# Read combined DM log (you + other person)
-gchatctl chat messages with --profile work --email user@company.com --limit 10
+### Messages
 
+```powershell
 # Read by explicit space
 gchatctl chat messages list --profile work --space spaces/AAA... --limit 20
 
 # Send message by person or by space
 gchatctl chat messages send --profile work --email user@company.com --text "hello"
 gchatctl chat messages send --profile work --space spaces/AAA... --text "hello"
-```
 
-### Monitoring
-
-```powershell
-# Native unread (requires read-state scope)
-gchatctl chat spaces unread --profile work --json
-
-# Poll new messages in last window
-gchatctl chat messages poll --profile work --space spaces/AAA... --since 5m --interval 30s --iterations 10
-```
-
-### User Aliases (when API hides display names)
-
-```powershell
-gchatctl chat users aliases set --user users/123... --name "Simon"
-gchatctl chat users aliases list
-gchatctl chat users aliases unset --user users/123...
+# Read DM history with a person
+gchatctl chat messages with --profile work --email user@company.com --limit 10
 ```
 
 ## Files and Storage
@@ -97,7 +80,6 @@ gchatctl chat users aliases unset --user users/123...
 
 - Windows config: `%APPDATA%\gchatctl\config.json`
 - Windows tokens: `%APPDATA%\gchatctl\token_<profile>.json`
-- Aliases: `%APPDATA%\gchatctl\aliases.json`
 
 ## Troubleshooting
 
@@ -105,24 +87,20 @@ gchatctl chat users aliases unset --user users/123...
   Run `gchatctl auth login --profile <profile> --all-scopes`
 - `Google Chat app not found`:
   Enable Chat API and complete Chat app configuration in Google Cloud.
-- Missing names in DMs:
-  Use `chat dm find --email ...` and aliases for stable identity in output.
 
-## Release Notes for GitHub Push
+## Automated Releases
 
-Recommended release layout:
+This repo includes `.github/workflows/release.yml`.
 
-- Attach per-OS binaries to GitHub Releases
-- Keep README examples binary-first (`gchatctl ...`)
-- Keep source build as secondary path
+On tag push (`v*`), GitHub Actions will:
 
-Example cross-build commands:
+- Build binaries for Windows/Linux/macOS (amd64 + arm64)
+- Package assets (`.zip` for Windows, `.tar.gz` for Linux/macOS)
+- Publish them to the GitHub Release for that tag
+
+Publish a release:
 
 ```powershell
-# Windows
-go build -o dist/gchatctl-windows-amd64.exe .
-
-# Linux/macOS (run in CI or matching env)
-# GOOS=linux GOARCH=amd64 go build -o dist/gchatctl-linux-amd64 .
-# GOOS=darwin GOARCH=arm64 go build -o dist/gchatctl-darwin-arm64 .
+git tag v0.1.0
+git push origin v0.1.0
 ```

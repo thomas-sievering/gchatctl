@@ -239,7 +239,7 @@ func runAuth(args []string) error {
 func printAuthHelp() {
 	fmt.Println("gchatctl auth commands:")
 	fmt.Println("  auth setup [--open]")
-	fmt.Println("  auth login [--profile default] [--mode auto|browser|device] [--no-open] [--timeout 3m] [--all-scopes] [--client-id ...] [--client-secret optional] [--scopes comma,list]")
+	fmt.Println("  auth login [--profile default] [--all-scopes] [--client-id ...] [--scopes comma,list]")
 	fmt.Println("  auth status [--profile default] [--json]")
 	fmt.Println("  auth logout [--profile default]")
 }
@@ -251,14 +251,10 @@ func runChat(args []string) error {
 	}
 
 	switch args[0] {
-	case "dm":
-		return runChatDM(args[1:])
 	case "spaces":
 		return runChatSpaces(args[1:])
 	case "messages":
 		return runChatMessages(args[1:])
-	case "users":
-		return runChatUsers(args[1:])
 	case "help", "--help", "-h":
 		printChatHelp()
 		return nil
@@ -270,21 +266,10 @@ func runChat(args []string) error {
 
 func printChatHelp() {
 	fmt.Println("gchatctl chat commands:")
-	fmt.Println("  chat dm find (--email user@company.com | --user users/...) [--profile default] [--json]")
 	fmt.Println("  chat spaces list [--profile default] [--limit 100] [--json]")
-	fmt.Println("  chat spaces unread [--profile default] [--limit 100] [--json]")
-	fmt.Println("  chat spaces dm [--profile default] [--limit 100] [--json]")
-	fmt.Println("  chat spaces members --space spaces/... [--profile default] [--json]")
 	fmt.Println("  chat messages list --space spaces/AAA... [--profile default] [--limit 50] [--json]")
 	fmt.Println("  chat messages send (--space spaces/AAA... | --email user@company.com | --user users/...) --text \"...\" [--profile default] [--json]")
 	fmt.Println("  chat messages with (--email user@company.com | --user users/...) [--profile default] [--limit 10] [--json]")
-	fmt.Println("  chat messages senders --space spaces/AAA... [--profile default] [--limit 5] [--json]")
-	fmt.Println("  chat messages poll [--profile default] [--space spaces/AAA...] [--since 5m] [--interval 30s] [--iterations 1] [--limit 100] [--json]")
-	fmt.Println("  chat users aliases list [--json]")
-	fmt.Println("  chat users aliases set --user users/... --name \"Display Name\"")
-	fmt.Println("  chat users aliases set-from-space --profile work --space spaces/... --name \"Simon\"")
-	fmt.Println("  chat users aliases infer --profile work [--apply]")
-	fmt.Println("  chat users aliases unset --user users/...")
 }
 
 func runChatDM(args []string) error {
@@ -363,12 +348,6 @@ func runChatSpaces(args []string) error {
 	switch args[0] {
 	case "list":
 		return runChatSpacesList(args[1:])
-	case "unread":
-		return runChatSpacesUnread(args[1:])
-	case "dm":
-		return runChatSpacesDM(args[1:])
-	case "members":
-		return runChatSpacesMembers(args[1:])
 	case "help", "--help", "-h":
 		printChatSpacesHelp()
 		return nil
@@ -381,9 +360,6 @@ func runChatSpaces(args []string) error {
 func printChatSpacesHelp() {
 	fmt.Println("gchatctl chat spaces commands:")
 	fmt.Println("  chat spaces list [--profile default] [--limit 100] [--json]")
-	fmt.Println("  chat spaces unread [--profile default] [--limit 100] [--json]")
-	fmt.Println("  chat spaces dm [--profile default] [--limit 100] [--json]")
-	fmt.Println("  chat spaces members --space spaces/... [--profile default] [--json]")
 }
 
 func runChatSpacesList(args []string) error {
@@ -689,10 +665,6 @@ func runChatMessages(args []string) error {
 		return runChatMessagesSend(args[1:])
 	case "with":
 		return runChatMessagesWith(args[1:])
-	case "senders":
-		return runChatMessagesSenders(args[1:])
-	case "poll":
-		return runChatMessagesPoll(args[1:])
 	case "help", "--help", "-h":
 		printChatMessagesHelp()
 		return nil
@@ -1054,8 +1026,6 @@ func printChatMessagesHelp() {
 	fmt.Println("  chat messages list --space spaces/AAA... [--profile default] [--limit 50] [--json]")
 	fmt.Println("  chat messages send (--space spaces/AAA... | --email user@company.com | --user users/...) --text \"...\" [--profile default] [--json]")
 	fmt.Println("  chat messages with (--email user@company.com | --user users/...) [--profile default] [--limit 10] [--json]")
-	fmt.Println("  chat messages senders --space spaces/AAA... [--profile default] [--limit 5] [--json]")
-	fmt.Println("  chat messages poll [--profile default] [--space spaces/AAA...] [--since 5m] [--interval 30s] [--iterations 1] [--limit 100] [--json]")
 }
 
 func runChatMessagesList(args []string) error {
