@@ -13,23 +13,23 @@ Fast auth, read messages, and send messages.
 ## Quick Start
 
 ```powershell
-# 1) One-time setup links (OAuth + Chat API)
+# 1) Print setup links (copy/paste into any browser you choose)
 gchatctl auth setup
 
 # 2) Login (recommended scopes bundle)
-gchatctl auth login --profile work --all-scopes
+gchatctl auth login --all-scopes
 
 # 3) List your spaces
-gchatctl chat spaces list --profile work --limit 20
+gchatctl chat spaces list --limit 20
 
 # 4) Read what you received in last 15 minutes (all spaces)
-gchatctl chat inbox --profile work --since 15m --limit 200
+gchatctl chat inbox --since 15m --limit 200
 
 # 5) Read recent messages from a person (name lookup, no ID/email needed)
-gchatctl chat recent --profile work --name "Simon" --limit 10
+gchatctl chat recent --name "Simon" --limit 10
 
 # 6) Send message
-gchatctl chat send --profile work --email user@company.com --text "hello"
+gchatctl chat send --email user@company.com --text "hello"
 ```
 
 ## Install
@@ -52,36 +52,36 @@ End users do **not** need Go if you ship the binary.
 
 ```powershell
 gchatctl auth setup
-gchatctl auth login --profile work --all-scopes --json
-gchatctl auth status --profile work --json
-gchatctl auth logout --profile work
+gchatctl auth login --all-scopes --json
+gchatctl auth status --json
+gchatctl auth logout
 ```
 
 ### Spaces
 
 ```powershell
-gchatctl chat spaces list --profile work --limit 100
+gchatctl chat spaces list --limit 100
 ```
 
 ### Messages
 
 ```powershell
 # Primary commands (recommended)
-gchatctl chat inbox --profile work --since 15m --limit 200
-gchatctl chat recent --profile work --name "Simon" --limit 10
-gchatctl chat send --profile work --email user@company.com --text "hello"
+gchatctl chat inbox --since 15m --limit 200
+gchatctl chat recent --name "Simon" --limit 10
+gchatctl chat send --email user@company.com --text "hello"
 
 # Read by explicit space (advanced)
-gchatctl chat list --profile work --space spaces/AAA... --limit 20
+gchatctl chat list --space spaces/AAA... --limit 20
 
 # Full DM history with a person (includes both sides)
-gchatctl chat with --profile work --name "Simon" --limit 20
+gchatctl chat with --name "Simon" --limit 20
 
 # Send directly to a known space
-gchatctl chat send --profile work --space spaces/AAA... --text "hello"
+gchatctl chat send --space spaces/AAA... --text "hello"
 
 # Poll for new messages over time
-gchatctl chat poll --profile work --since 5m --interval 30s --iterations 3 --json
+gchatctl chat poll --since 5m --interval 30s --iterations 3 --json
 ```
 
 ## JSON Output
@@ -92,11 +92,11 @@ gchatctl chat poll --profile work --since 5m --interval 30s --iterations 3 --jso
 
 ```powershell
 # compact JSON
-gchatctl chat recent --profile work --name "Simon" --limit 10 --json
+gchatctl chat recent --name "Simon" --limit 10 --json
 
 # pretty JSON
 $env:GCHATCTL_JSON_PRETTY = "1"
-gchatctl chat inbox --profile work --since 15m --limit 200 --json
+gchatctl chat inbox --since 15m --limit 200 --json
 ```
 
 ## Files and Storage
@@ -104,12 +104,12 @@ gchatctl chat inbox --profile work --since 15m --limit 200 --json
 `gchatctl` stores config/tokens in your user config dir:
 
 - Windows config: `%APPDATA%\gchatctl\config.json`
-- Windows tokens: `%APPDATA%\gchatctl\token_<profile>.json`
+- Windows token: `%APPDATA%\gchatctl\token.json`
 
 ## Troubleshooting
 
 - `insufficient auth scopes`:
-  Run `gchatctl auth login --profile <profile> --all-scopes`
+  Run `gchatctl auth login --all-scopes`
 - `Google Chat app not found`:
   Enable Chat API and complete Chat app configuration in Google Cloud.
 

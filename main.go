@@ -49,9 +49,8 @@ type OAuthClient struct {
 }
 
 type AppConfig struct {
-	DefaultProfile string      `json:"default_profile"`
-	OAuthClient    OAuthClient `json:"oauth_client"`
-	Scopes         []string    `json:"scopes"`
+	OAuthClient OAuthClient `json:"oauth_client"`
+	Scopes      []string    `json:"scopes"`
 }
 
 type StoredToken struct {
@@ -241,9 +240,9 @@ func runAuth(args []string) error {
 func printAuthHelp() {
 	fmt.Println("gchatctl auth commands:")
 	fmt.Println("  auth setup [--open] [--json]")
-	fmt.Println("  auth login [--profile default] [--all-scopes] [--client-id ...] [--scopes comma,list] [--json]")
-	fmt.Println("  auth status [--profile default] [--json]")
-	fmt.Println("  auth logout [--profile default]")
+	fmt.Println("  auth login [--all-scopes] [--client-id ...] [--scopes comma,list] [--json]")
+	fmt.Println("  auth status [--json]")
+	fmt.Println("  auth logout")
 }
 
 func runChat(args []string) error {
@@ -282,12 +281,12 @@ func runChat(args []string) error {
 
 func printChatHelp() {
 	fmt.Println("gchatctl chat commands:")
-	fmt.Println("  chat inbox [--profile default] [--since 10m] [--limit 200] [--json]")
-	fmt.Println("  chat recent (--name \"Simon\" | --email user@company.com | --user users/...) [--profile default] [--limit 10] [--json]")
-	fmt.Println("  chat with (--name \"Simon\" | --email user@company.com | --user users/...) [--profile default] [--limit 10] [--json]")
-	fmt.Println("  chat send (--space spaces/AAA... | --email user@company.com | --user users/...) --text \"...\" [--profile default] [--json]")
-	fmt.Println("  chat list --space spaces/AAA... [--profile default] [--limit 50] [--json]")
-	fmt.Println("  chat poll [--space spaces/AAA...] [--profile default] [--since 5m] [--interval 30s] [--iterations 1] [--limit 100] [--json]")
+	fmt.Println("  chat inbox [--since 10m] [--limit 200] [--json]")
+	fmt.Println("  chat recent (--name \"Simon\" | --email user@company.com | --user users/...) [--limit 10] [--json]")
+	fmt.Println("  chat with (--name \"Simon\" | --email user@company.com | --user users/...) [--limit 10] [--json]")
+	fmt.Println("  chat send (--space spaces/AAA... | --email user@company.com | --user users/...) --text \"...\" [--json]")
+	fmt.Println("  chat list --space spaces/AAA... [--limit 50] [--json]")
+	fmt.Println("  chat poll [--space spaces/AAA...] [--since 5m] [--interval 30s] [--iterations 1] [--limit 100] [--json]")
 	fmt.Println("  chat spaces ...   (list, unread, dm, members)")
 	fmt.Println("  chat users aliases ...")
 }
@@ -317,15 +316,14 @@ func runChatSpaces(args []string) error {
 
 func printChatSpacesHelp() {
 	fmt.Println("gchatctl chat spaces commands:")
-	fmt.Println("  chat spaces list [--profile default] [--limit 100] [--json]")
-	fmt.Println("  chat spaces unread [--profile default] [--limit 100] [--json]")
-	fmt.Println("  chat spaces dm [--profile default] [--limit 100] [--json]")
-	fmt.Println("  chat spaces members --space spaces/AAA... [--profile default] [--json]")
+	fmt.Println("  chat spaces list [--limit 100] [--json]")
+	fmt.Println("  chat spaces unread [--limit 100] [--json]")
+	fmt.Println("  chat spaces dm [--limit 100] [--json]")
+	fmt.Println("  chat spaces members --space spaces/AAA... [--json]")
 }
 
 func runChatSpacesList(args []string) error {
 	fs := flag.NewFlagSet("chat spaces list", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	limit := fs.Int("limit", 100, "max spaces to return")
 	jsonOut := fs.Bool("json", false, "print JSON")
 	if err := fs.Parse(args); err != nil {
@@ -336,7 +334,7 @@ func runChatSpacesList(args []string) error {
 	}
 
 	ctx := context.Background()
-	selectedProfile, cfg, st, err := loadAuthContext(*profile)
+	cfg, st, err := loadAuthContext()
 	if err != nil {
 		return err
 	}
@@ -349,24 +347,22 @@ func runChatSpacesList(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
+	if err := saveRefreshedTokenIfChanged(st, tokenSource); err != nil {
 		return err
 	}
 
 	if *jsonOut {
-		out := map[string]any{
-			"profile": selectedProfile,
-			"count":   len(items),
-			"spaces":  items,
+		out := map[string]any{"count": len(items),
+			"spaces": items,
 		}
 		return printJSON(out)
 	}
 
 	if len(items) == 0 {
-		fmt.Printf("No spaces found for profile %q\n", selectedProfile)
+		fmt.Printf("No spaces found\n")
 		return nil
 	}
-	fmt.Printf("Spaces (%d) for profile %q:\n", len(items), selectedProfile)
+	fmt.Printf("Spaces (%d):\n", len(items))
 	for _, s := range items {
 		display := firstNonEmpty(strings.TrimSpace(s.DisplayName), "(no display name)")
 		fmt.Printf("- %s  [%s]  %s\n", s.Name, firstNonEmpty(s.SpaceType, "SPACE"), display)
@@ -376,7 +372,6 @@ func runChatSpacesList(args []string) error {
 
 func runChatSpacesUnread(args []string) error {
 	fs := flag.NewFlagSet("chat spaces unread", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	limit := fs.Int("limit", 100, "max spaces to check")
 	jsonOut := fs.Bool("json", false, "print JSON")
 	if err := fs.Parse(args); err != nil {
@@ -387,7 +382,7 @@ func runChatSpacesUnread(args []string) error {
 	}
 
 	ctx := context.Background()
-	selectedProfile, cfg, st, err := loadAuthContext(*profile)
+	cfg, st, err := loadAuthContext()
 	if err != nil {
 		return err
 	}
@@ -435,23 +430,21 @@ func runChatSpacesUnread(args []string) error {
 		return tj.Before(ti)
 	})
 
-	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
+	if err := saveRefreshedTokenIfChanged(st, tokenSource); err != nil {
 		return err
 	}
 
 	if *jsonOut {
-		out := map[string]any{
-			"profile": selectedProfile,
-			"count":   len(unread),
-			"spaces":  unread,
+		out := map[string]any{"count": len(unread),
+			"spaces": unread,
 		}
 		return printJSON(out)
 	}
 	if len(unread) == 0 {
-		fmt.Printf("No unread spaces for profile %q\n", selectedProfile)
+		fmt.Printf("No unread spaces\n")
 		return nil
 	}
-	fmt.Printf("Unread spaces (%d) for profile %q:\n", len(unread), selectedProfile)
+	fmt.Printf("Unread spaces (%d):\n", len(unread))
 	for _, u := range unread {
 		label := firstNonEmpty(strings.TrimSpace(u.Display), "(no display name)")
 		fmt.Printf("- %s  [%s]  %s  latest=%s\n", u.Space, firstNonEmpty(u.SpaceType, "SPACE"), label, u.Latest)
@@ -461,7 +454,6 @@ func runChatSpacesUnread(args []string) error {
 
 func runChatSpacesDM(args []string) error {
 	fs := flag.NewFlagSet("chat spaces dm", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	limit := fs.Int("limit", 100, "max DM spaces to return")
 	jsonOut := fs.Bool("json", false, "print JSON")
 	if err := fs.Parse(args); err != nil {
@@ -472,7 +464,7 @@ func runChatSpacesDM(args []string) error {
 	}
 
 	ctx := context.Background()
-	selectedProfile, cfg, st, err := loadAuthContext(*profile)
+	cfg, st, err := loadAuthContext()
 	if err != nil {
 		return err
 	}
@@ -515,22 +507,20 @@ func runChatSpacesDM(args []string) error {
 		}
 	}
 
-	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
+	if err := saveRefreshedTokenIfChanged(st, tokenSource); err != nil {
 		return err
 	}
 
 	if *jsonOut {
-		return printJSON(map[string]any{
-			"profile": selectedProfile,
-			"count":   len(out),
-			"dms":     out,
+		return printJSON(map[string]any{"count": len(out),
+			"dms": out,
 		})
 	}
 	if len(out) == 0 {
-		fmt.Printf("No direct-message spaces found for profile %q\n", selectedProfile)
+		fmt.Printf("No direct-message spaces found\n")
 		return nil
 	}
-	fmt.Printf("Direct-message spaces (%d) for profile %q:\n", len(out), selectedProfile)
+	fmt.Printf("Direct-message spaces (%d):\n", len(out))
 	for _, dm := range out {
 		label := firstNonEmpty(dm.PeerDisplayName, dm.PeerUser)
 		fmt.Printf("- %s  peer=%s (%s)\n", dm.Space, label, dm.PeerUser)
@@ -540,7 +530,6 @@ func runChatSpacesDM(args []string) error {
 
 func runChatSpacesMembers(args []string) error {
 	fs := flag.NewFlagSet("chat spaces members", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	space := fs.String("space", "", "space resource name or ID")
 	jsonOut := fs.Bool("json", false, "print JSON")
 	if err := fs.Parse(args); err != nil {
@@ -552,7 +541,7 @@ func runChatSpacesMembers(args []string) error {
 	spaceName := normalizeSpaceName(*space)
 
 	ctx := context.Background()
-	selectedProfile, cfg, st, err := loadAuthContext(*profile)
+	cfg, st, err := loadAuthContext()
 	if err != nil {
 		return err
 	}
@@ -565,7 +554,7 @@ func runChatSpacesMembers(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
+	if err := saveRefreshedTokenIfChanged(st, tokenSource); err != nil {
 		return err
 	}
 
@@ -587,9 +576,7 @@ func runChatSpacesMembers(args []string) error {
 	}
 
 	if *jsonOut {
-		return printJSON(map[string]any{
-			"profile": selectedProfile,
-			"space":   spaceName,
+		return printJSON(map[string]any{"space": spaceName,
 			"count":   len(out),
 			"members": out,
 		})
@@ -627,8 +614,8 @@ func printChatUsersHelp() {
 	fmt.Println("gchatctl chat users commands:")
 	fmt.Println("  chat users aliases list [--json]")
 	fmt.Println("  chat users aliases set --user users/... --name \"Display Name\"")
-	fmt.Println("  chat users aliases set-from-space --profile work --space spaces/... --name \"Simon\"")
-	fmt.Println("  chat users aliases infer --profile work [--apply]")
+	fmt.Println("  chat users aliases set-from-space --space spaces/... --name \"Simon\"")
+	fmt.Println("  chat users aliases infer [--apply]")
 	fmt.Println("  chat users aliases unset --user users/...")
 }
 
@@ -735,7 +722,6 @@ func runChatUsersAliasesUnset(args []string) error {
 
 func runChatUsersAliasesSetFromSpace(args []string) error {
 	fs := flag.NewFlagSet("chat users aliases set-from-space", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	space := fs.String("space", "", "space resource name or ID (DIRECT_MESSAGE)")
 	name := fs.String("name", "", "display name alias")
 	if err := fs.Parse(args); err != nil {
@@ -750,7 +736,7 @@ func runChatUsersAliasesSetFromSpace(args []string) error {
 	spaceName := normalizeSpaceName(*space)
 
 	ctx := context.Background()
-	selectedProfile, cfg, st, err := loadAuthContext(*profile)
+	cfg, st, err := loadAuthContext()
 	if err != nil {
 		return err
 	}
@@ -780,7 +766,7 @@ func runChatUsersAliasesSetFromSpace(args []string) error {
 	if err := saveAliases(aliases); err != nil {
 		return err
 	}
-	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
+	if err := saveRefreshedTokenIfChanged(st, tokenSource); err != nil {
 		return err
 	}
 	fmt.Printf("Saved alias from %s: %s => %s\n", spaceName, key, aliases[key])
@@ -789,7 +775,6 @@ func runChatUsersAliasesSetFromSpace(args []string) error {
 
 func runChatUsersAliasesInfer(args []string) error {
 	fs := flag.NewFlagSet("chat users aliases infer", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	spaceLimit := fs.Int("space-limit", 100, "max spaces to scan")
 	messageLimit := fs.Int("message-limit", 100, "max messages per space")
 	apply := fs.Bool("apply", false, "save inferred aliases")
@@ -803,7 +788,7 @@ func runChatUsersAliasesInfer(args []string) error {
 	}
 
 	ctx := context.Background()
-	selectedProfile, cfg, st, err := loadAuthContext(*profile)
+	cfg, st, err := loadAuthContext()
 	if err != nil {
 		return err
 	}
@@ -918,14 +903,12 @@ func runChatUsersAliasesInfer(args []string) error {
 			return err
 		}
 	}
-	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
+	if err := saveRefreshedTokenIfChanged(st, tokenSource); err != nil {
 		return err
 	}
 
 	if *jsonOut {
-		return printJSON(map[string]any{
-			"profile":   selectedProfile,
-			"count":     len(inferredList),
+		return printJSON(map[string]any{"count": len(inferredList),
 			"inferred":  inferredList,
 			"applied":   *apply,
 			"overwrote": *force,
@@ -951,7 +934,6 @@ func runChatUsersAliasesInfer(args []string) error {
 
 func runChatMessagesList(args []string) error {
 	fs := flag.NewFlagSet("chat list", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	space := fs.String("space", "", "space resource name or ID")
 	limit := fs.Int("limit", 50, "max messages to return")
 	jsonOut := fs.Bool("json", false, "print JSON")
@@ -968,7 +950,7 @@ func runChatMessagesList(args []string) error {
 	spaceName := normalizeSpaceName(*space)
 
 	ctx := context.Background()
-	selectedProfile, cfg, st, err := loadAuthContext(*profile)
+	cfg, st, err := loadAuthContext()
 	if err != nil {
 		return err
 	}
@@ -1001,14 +983,12 @@ func runChatMessagesList(args []string) error {
 	if strings.TrimSpace(*person) != "" {
 		items = filterMessagesByPerson(items, *person)
 	}
-	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
+	if err := saveRefreshedTokenIfChanged(st, tokenSource); err != nil {
 		return err
 	}
 
 	if *jsonOut {
-		out := map[string]any{
-			"profile":  selectedProfile,
-			"space":    spaceName,
+		out := map[string]any{"space": spaceName,
 			"count":    len(items),
 			"messages": items,
 		}
@@ -1016,10 +996,10 @@ func runChatMessagesList(args []string) error {
 	}
 
 	if len(items) == 0 {
-		fmt.Printf("No messages found in %q for profile %q\n", spaceName, selectedProfile)
+		fmt.Printf("No messages found in %q\n", spaceName)
 		return nil
 	}
-	fmt.Printf("Messages (%d) in %q for profile %q:\n", len(items), spaceName, selectedProfile)
+	fmt.Printf("Messages (%d) in %q:\n", len(items), spaceName)
 	for _, m := range items {
 		when := firstNonEmpty(strings.TrimSpace(m.CreateTime), "unknown-time")
 		sender := firstNonEmpty(strings.TrimSpace(m.Sender.DisplayName), strings.TrimSpace(m.Sender.Name), "unknown-sender")
@@ -1031,7 +1011,6 @@ func runChatMessagesList(args []string) error {
 
 func runChatMessagesSend(args []string) error {
 	fs := flag.NewFlagSet("chat send", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	space := fs.String("space", "", "space resource name or ID")
 	email := fs.String("email", "", "recipient email (maps to users/<email>)")
 	user := fs.String("user", "", "recipient user resource (users/...)")
@@ -1058,7 +1037,7 @@ func runChatMessagesSend(args []string) error {
 	}
 
 	ctx := context.Background()
-	selectedProfile, cfg, st, err := loadAuthContext(*profile)
+	cfg, st, err := loadAuthContext()
 	if err != nil {
 		return err
 	}
@@ -1082,14 +1061,12 @@ func runChatMessagesSend(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
+	if err := saveRefreshedTokenIfChanged(st, tokenSource); err != nil {
 		return err
 	}
 
 	if *jsonOut {
-		out := map[string]any{
-			"profile": selectedProfile,
-			"space":   spaceName,
+		out := map[string]any{"space": spaceName,
 			"message": sent,
 		}
 		return printJSON(out)
@@ -1103,7 +1080,6 @@ func runChatMessagesSend(args []string) error {
 
 func runChatMessagesWith(args []string) error {
 	fs := flag.NewFlagSet("chat with", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	email := fs.String("email", "", "user email (maps to users/<email>)")
 	user := fs.String("user", "", "user resource name (users/...)")
 	name := fs.String("name", "", "peer display name in DM spaces (example: Simon)")
@@ -1137,7 +1113,7 @@ func runChatMessagesWith(args []string) error {
 	}
 
 	ctx := context.Background()
-	selectedProfile, cfg, st, err := loadAuthContext(*profile)
+	cfg, st, err := loadAuthContext()
 	if err != nil {
 		return err
 	}
@@ -1178,14 +1154,12 @@ func runChatMessagesWith(args []string) error {
 			}
 		}
 	}
-	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
+	if err := saveRefreshedTokenIfChanged(st, tokenSource); err != nil {
 		return err
 	}
 
 	if *jsonOut {
-		out := map[string]any{
-			"profile":         selectedProfile,
-			"target":          targetUser,
+		out := map[string]any{"target": targetUser,
 			"space":           targetSpace,
 			"count":           len(items),
 			"messages":        items,
@@ -1209,7 +1183,6 @@ func runChatMessagesWith(args []string) error {
 
 func runChatMessagesRecent(args []string) error {
 	fs := flag.NewFlagSet("chat recent", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	email := fs.String("email", "", "user email (maps to users/<email>)")
 	user := fs.String("user", "", "user resource name (users/...)")
 	name := fs.String("name", "", "peer display name in DM spaces (example: Simon)")
@@ -1244,7 +1217,7 @@ func runChatMessagesRecent(args []string) error {
 	}
 
 	ctx := context.Background()
-	selectedProfile, cfg, st, err := loadAuthContext(*profile)
+	cfg, st, err := loadAuthContext()
 	if err != nil {
 		return err
 	}
@@ -1307,14 +1280,12 @@ func runChatMessagesRecent(args []string) error {
 		}
 	}
 
-	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
+	if err := saveRefreshedTokenIfChanged(st, tokenSource); err != nil {
 		return err
 	}
 
 	if *jsonOut {
-		out := map[string]any{
-			"profile":         selectedProfile,
-			"target":          targetUser,
+		out := map[string]any{"target": targetUser,
 			"space":           targetSpace,
 			"count":           len(fromTarget),
 			"messages":        fromTarget,
@@ -1339,7 +1310,6 @@ func runChatMessagesRecent(args []string) error {
 
 func runChatMessagesIncoming(args []string) error {
 	fs := flag.NewFlagSet("chat incoming", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	space := fs.String("space", "", "optional single space resource name or ID")
 	since := fs.Duration("since", 10*time.Minute, "look back window")
 	limit := fs.Int("limit", 200, "max messages returned")
@@ -1364,7 +1334,7 @@ func runChatMessagesIncoming(args []string) error {
 	}
 
 	ctx := context.Background()
-	selectedProfile, cfg, st, err := loadAuthContext(*profile)
+	cfg, st, err := loadAuthContext()
 	if err != nil {
 		return err
 	}
@@ -1441,14 +1411,12 @@ func runChatMessagesIncoming(args []string) error {
 		found = found[:*limit]
 	}
 
-	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
+	if err := saveRefreshedTokenIfChanged(st, tokenSource); err != nil {
 		return err
 	}
 
 	if *jsonOut {
-		out := map[string]any{
-			"profile":      selectedProfile,
-			"count":        len(found),
+		out := map[string]any{"count": len(found),
 			"since_window": since.String(),
 			"cutoff_utc":   cutoff.Format(time.RFC3339Nano),
 			"spaces":       len(targetSpaces),
@@ -1469,7 +1437,6 @@ func runChatMessagesIncoming(args []string) error {
 
 func runChatMessagesPoll(args []string) error {
 	fs := flag.NewFlagSet("chat poll", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	space := fs.String("space", "", "optional single space resource name or ID")
 	since := fs.Duration("since", 5*time.Minute, "look back window for first poll")
 	interval := fs.Duration("interval", 30*time.Second, "poll interval between iterations")
@@ -1493,7 +1460,7 @@ func runChatMessagesPoll(args []string) error {
 	}
 
 	ctx := context.Background()
-	selectedProfile, cfg, st, err := loadAuthContext(*profile)
+	cfg, st, err := loadAuthContext()
 	if err != nil {
 		return err
 	}
@@ -1563,9 +1530,7 @@ func runChatMessagesPoll(args []string) error {
 		})
 
 		if *jsonOut {
-			out := map[string]any{
-				"profile":      selectedProfile,
-				"iteration":    i + 1,
+			out := map[string]any{"iteration": i + 1,
 				"iterations":   *iterations,
 				"since_window": since.String(),
 				"count":        len(found),
@@ -1591,7 +1556,7 @@ func runChatMessagesPoll(args []string) error {
 		}
 	}
 
-	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
+	if err := saveRefreshedTokenIfChanged(st, tokenSource); err != nil {
 		return err
 	}
 	return nil
@@ -1644,23 +1609,22 @@ func runAuthSetup(args []string) error {
 	return nil
 }
 
-func loadAuthContext(profileFlag string) (string, AppConfig, StoredToken, error) {
+func loadAuthContext() (AppConfig, StoredToken, error) {
 	cfg, err := loadConfig()
 	if err != nil {
-		return "", AppConfig{}, StoredToken{}, err
+		return AppConfig{}, StoredToken{}, err
 	}
-	selectedProfile := chooseProfile(profileFlag, cfg.DefaultProfile)
-	st, err := loadToken(selectedProfile)
+	st, err := loadToken()
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return "", AppConfig{}, StoredToken{}, fmt.Errorf("profile %q is not authenticated; run: gchatctl auth login --profile %s", selectedProfile, selectedProfile)
+			return AppConfig{}, StoredToken{}, errors.New("not authenticated; run: gchatctl auth login")
 		}
-		return "", AppConfig{}, StoredToken{}, err
+		return AppConfig{}, StoredToken{}, err
 	}
 	if strings.TrimSpace(cfg.OAuthClient.ClientID) == "" {
-		return "", AppConfig{}, StoredToken{}, errors.New("missing OAuth client ID in config; run `gchatctl auth login` again")
+		return AppConfig{}, StoredToken{}, errors.New("missing OAuth client ID in config; run `gchatctl auth login` again")
 	}
-	return selectedProfile, cfg, st, nil
+	return cfg, st, nil
 }
 
 func oauthConfigFrom(cfg AppConfig, scopes []string) *oauth2.Config {
@@ -1675,7 +1639,7 @@ func oauthConfigFrom(cfg AppConfig, scopes []string) *oauth2.Config {
 	}
 }
 
-func saveRefreshedTokenIfChanged(profile string, previous StoredToken, source oauth2.TokenSource) error {
+func saveRefreshedTokenIfChanged(previous StoredToken, source oauth2.TokenSource) error {
 	current, err := source.Token()
 	if err != nil {
 		return err
@@ -1688,7 +1652,7 @@ func saveRefreshedTokenIfChanged(profile string, previous StoredToken, source oa
 	}
 	previous.Token = *current
 	previous.SavedAt = time.Now().UTC()
-	return saveToken(profile, previous)
+	return saveToken(previous)
 }
 
 func normalizeSpaceName(raw string) string {
@@ -2210,7 +2174,7 @@ func decodeAPIResponse(resp *http.Response, out any) error {
 				return errors.New("google chat app not found in this project; enable Chat API and configure a Chat app in Google Cloud Console (gchatctl auth setup shows links)")
 			}
 			if apiErr.Error.Code == 403 && strings.Contains(strings.ToLower(msg), "insufficient authentication scopes") {
-				return errors.New("insufficient auth scopes; run `gchatctl auth login --profile <profile> --all-scopes`")
+				return errors.New("insufficient auth scopes; run `gchatctl auth login --all-scopes`")
 			}
 			return fmt.Errorf("google chat api request failed (%s): %s", resp.Status, msg)
 		}
@@ -2295,7 +2259,6 @@ func saveAliases(aliases map[string]string) error {
 
 func runAuthLogin(args []string) error {
 	fs := flag.NewFlagSet("auth login", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	clientID := fs.String("client-id", "", "OAuth client ID")
 	clientSecret := fs.String("client-secret", "", "OAuth client secret")
 	scopesRaw := fs.String("scopes", "", "comma-separated OAuth scopes")
@@ -2313,7 +2276,6 @@ func runAuthLogin(args []string) error {
 		return err
 	}
 
-	selectedProfile := chooseProfile(*profile, cfg.DefaultProfile)
 	effectiveScopesRaw := *scopesRaw
 	if *allScopes {
 		effectiveScopesRaw = defaultChatScopesCSV
@@ -2360,21 +2322,19 @@ func runAuthLogin(args []string) error {
 		return err
 	}
 
-	cfg.DefaultProfile = selectedProfile
 	cfg.OAuthClient.ClientID = cid
 	cfg.OAuthClient.ClientSecret = secret
 	cfg.Scopes = scopes
 	if err := saveConfig(cfg); err != nil {
 		return err
 	}
-	if err := saveToken(selectedProfile, StoredToken{Token: *tok, Scopes: scopes, Mode: resolvedMode, SavedAt: time.Now().UTC()}); err != nil {
+	if err := saveToken(StoredToken{Token: *tok, Scopes: scopes, Mode: resolvedMode, SavedAt: time.Now().UTC()}); err != nil {
 		return err
 	}
 
 	if *jsonOut {
-		tokenFile, _ := tokenPath(selectedProfile)
+		tokenFile, _ := tokenPath()
 		out := map[string]any{
-			"profile":               selectedProfile,
 			"mode":                  resolvedMode,
 			"scopes":                scopes,
 			"authenticated":         true,
@@ -2385,7 +2345,7 @@ func runAuthLogin(args []string) error {
 		return printJSON(out)
 	}
 
-	fmt.Printf("Logged in profile %q using %s flow.\n", selectedProfile, resolvedMode)
+	fmt.Printf("Logged in using %s flow.\n", resolvedMode)
 	if strings.TrimSpace(secret) == "" {
 		fmt.Println("Client secret: not set (PKCE/public client mode)")
 	}
@@ -2399,29 +2359,19 @@ func runAuthLogin(args []string) error {
 
 func runAuthStatus(args []string) error {
 	fs := flag.NewFlagSet("auth status", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	jsonOut := fs.Bool("json", false, "print JSON")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	cfg, err := loadConfig()
-	if err != nil {
-		return err
-	}
-	selectedProfile := chooseProfile(*profile, cfg.DefaultProfile)
-	if selectedProfile == "" {
-		selectedProfile = "default"
-	}
-
-	st, err := loadToken(selectedProfile)
+	st, err := loadToken()
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
 			if *jsonOut {
-				fmt.Printf("{\"profile\":%q,\"authenticated\":false}\n", selectedProfile)
+				fmt.Printf("{\"authenticated\":false}\n")
 				return nil
 			}
-			fmt.Printf("Profile %q: not authenticated\n", selectedProfile)
+			fmt.Println("Not authenticated")
 			return nil
 		}
 		return err
@@ -2430,9 +2380,8 @@ func runAuthStatus(args []string) error {
 	valid := st.Token.Valid()
 	refreshTokenPresent := strings.TrimSpace(st.Token.RefreshToken) != ""
 	hasTokenMaterial := strings.TrimSpace(st.Token.AccessToken) != "" || refreshTokenPresent
-	tokenFile, _ := tokenPath(selectedProfile)
+	tokenFile, _ := tokenPath()
 	status := map[string]any{
-		"profile":               selectedProfile,
 		"authenticated":         hasTokenMaterial,
 		"valid":                 valid,
 		"expiry":                st.Token.Expiry,
@@ -2447,7 +2396,6 @@ func runAuthStatus(args []string) error {
 		return printJSON(status)
 	}
 
-	fmt.Printf("Profile: %s\n", selectedProfile)
 	fmt.Printf("Authenticated: %v\n", hasTokenMaterial)
 	fmt.Printf("Valid now: %v\n", valid)
 	if st.Token.Expiry.IsZero() {
@@ -2469,25 +2417,14 @@ func runAuthStatus(args []string) error {
 
 func runAuthLogout(args []string) error {
 	fs := flag.NewFlagSet("auth logout", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-
-	cfg, err := loadConfig()
-	if err != nil {
-		return err
-	}
-	selectedProfile := chooseProfile(*profile, cfg.DefaultProfile)
-	if selectedProfile == "" {
-		selectedProfile = "default"
-	}
-
-	err = deleteToken(selectedProfile)
+	err := deleteToken()
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return err
 	}
-	fmt.Printf("Removed token for profile %q\n", selectedProfile)
+	fmt.Printf("Removed token\n")
 	return nil
 }
 
@@ -2710,14 +2647,6 @@ func openBrowser(target string) error {
 	return cmd.Start()
 }
 
-func chooseProfile(flagVal, defaultProfile string) string {
-	p := strings.TrimSpace(firstNonEmpty(flagVal, os.Getenv("GCHATCTL_PROFILE"), defaultProfile))
-	if p == "" {
-		return "default"
-	}
-	return p
-}
-
 func chooseScopes(flagRaw string, defaultScopes []string) []string {
 	fromEnv := os.Getenv("GCHATCTL_SCOPES")
 	raw := strings.TrimSpace(firstNonEmpty(flagRaw, fromEnv))
@@ -2795,29 +2724,16 @@ func configPath() (string, error) {
 	return filepath.Join(d, "config.json"), nil
 }
 
-func tokenPath(profile string) (string, error) {
+func tokenPath() (string, error) {
 	d, err := configDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(d, fmt.Sprintf("token_%s.json", safeName(profile))), nil
-}
-
-func safeName(s string) string {
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return "default"
-	}
-	s = strings.ReplaceAll(s, "\\", "_")
-	s = strings.ReplaceAll(s, "/", "_")
-	s = strings.ReplaceAll(s, ":", "_")
-	s = strings.ReplaceAll(s, " ", "_")
-	return s
+	return filepath.Join(d, "token.json"), nil
 }
 
 func loadConfig() (AppConfig, error) {
 	var cfg AppConfig
-	cfg.DefaultProfile = "default"
 	path, err := configPath()
 	if err != nil {
 		return cfg, err
@@ -2831,9 +2747,6 @@ func loadConfig() (AppConfig, error) {
 	}
 	if err := json.Unmarshal(b, &cfg); err != nil {
 		return cfg, err
-	}
-	if cfg.DefaultProfile == "" {
-		cfg.DefaultProfile = "default"
 	}
 	return cfg, nil
 }
@@ -2853,9 +2766,9 @@ func saveConfig(cfg AppConfig) error {
 	return nil
 }
 
-func loadToken(profile string) (StoredToken, error) {
+func loadToken() (StoredToken, error) {
 	var st StoredToken
-	p, err := tokenPath(profile)
+	p, err := tokenPath()
 	if err != nil {
 		return st, err
 	}
@@ -2869,8 +2782,8 @@ func loadToken(profile string) (StoredToken, error) {
 	return st, nil
 }
 
-func saveToken(profile string, st StoredToken) error {
-	p, err := tokenPath(profile)
+func saveToken(st StoredToken) error {
+	p, err := tokenPath()
 	if err != nil {
 		return err
 	}
@@ -2884,8 +2797,8 @@ func saveToken(profile string, st StoredToken) error {
 	return nil
 }
 
-func deleteToken(profile string) error {
-	p, err := tokenPath(profile)
+func deleteToken() error {
+	p, err := tokenPath()
 	if err != nil {
 		return err
 	}

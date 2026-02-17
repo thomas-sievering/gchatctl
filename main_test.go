@@ -80,4 +80,3 @@ func TestRunChatMessagesRecentValidation(t *testing.T) {
 		t.Fatalf("unexpected error for invalid limit: %v", err)
 	}
 }
-
