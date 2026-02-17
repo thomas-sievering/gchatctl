@@ -1313,8 +1313,8 @@ func runChatMessagesIncoming(args []string) error {
 	space := fs.String("space", "", "optional single space resource name or ID")
 	since := fs.Duration("since", 10*time.Minute, "look back window")
 	limit := fs.Int("limit", 200, "max messages returned")
-	fetchLimit := fs.Int("fetch-limit", 100, "max messages fetched per space before filtering")
-	spaceLimit := fs.Int("space-limit", 200, "max spaces scanned when --space is not provided")
+	fetchLimit := fs.Int("fetch-limit", 40, "max messages fetched per space before filtering")
+	spaceLimit := fs.Int("space-limit", 50, "max spaces scanned when --space is not provided")
 	includeSelf := fs.Bool("include-self", false, "include messages sent by current user")
 	jsonOut := fs.Bool("json", false, "print JSON")
 	if err := fs.Parse(args); err != nil {
@@ -1331,6 +1331,14 @@ func runChatMessagesIncoming(args []string) error {
 	}
 	if *spaceLimit <= 0 {
 		return errors.New("--space-limit must be greater than 0")
+	}
+	broadScan := strings.TrimSpace(*space) == "" && *since > 24*time.Hour && *spaceLimit > 30
+	warningText := ""
+	if broadScan {
+		warningText = fmt.Sprintf(
+			"broad scan requested (--since=%s across up to %d spaces); this may be slow. Consider --space, lower --since, or smaller --space-limit/--fetch-limit",
+			since.String(), *spaceLimit,
+		)
 	}
 
 	ctx := context.Background()
@@ -1422,7 +1430,13 @@ func runChatMessagesIncoming(args []string) error {
 			"spaces":       len(targetSpaces),
 			"messages":     found,
 		}
+		if warningText != "" {
+			out["warning"] = warningText
+		}
 		return printJSON(out)
+	}
+	if warningText != "" {
+		fmt.Printf("warning: %s\n", warningText)
 	}
 	if len(found) == 0 {
 		fmt.Printf("No incoming messages in the last %s\n", since.String())
