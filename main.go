@@ -45,6 +45,8 @@ var defaultChatScopes = []string{
 
 const defaultChatScopesCSV = "https://www.googleapis.com/auth/chat.messages,https://www.googleapis.com/auth/chat.spaces.readonly,https://www.googleapis.com/auth/chat.memberships.readonly,https://www.googleapis.com/auth/chat.users.readstate.readonly"
 
+const defaultHTTPTimeout = 30 * time.Second
+
 type OAuthClient struct {
 	ClientID     string `json:"client_id"`
 	ClientSecret string `json:"client_secret"`
@@ -172,6 +174,10 @@ type AliasConfig struct {
 
 func main() {
 	if err := run(); err != nil {
+		if shouldPrintJSONError() {
+			_ = printJSONError(err)
+			os.Exit(1)
+		}
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
 	}
@@ -343,7 +349,7 @@ func runChatSpacesList(args []string) error {
 
 	oauthCfg := oauthConfigFrom(cfg, st.Scopes)
 	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
-	client := oauth2.NewClient(ctx, tokenSource)
+	client := newOAuthClient(ctx, tokenSource)
 
 	items, err := listSpaces(ctx, client, *limit)
 	if err != nil {
@@ -390,7 +396,7 @@ func runChatSpacesUnread(args []string) error {
 	}
 	oauthCfg := oauthConfigFrom(cfg, st.Scopes)
 	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
-	client := oauth2.NewClient(ctx, tokenSource)
+	client := newOAuthClient(ctx, tokenSource)
 
 	spaces, err := listSpaces(ctx, client, *limit)
 	if err != nil {
@@ -472,7 +478,7 @@ func runChatSpacesDM(args []string) error {
 	}
 	oauthCfg := oauthConfigFrom(cfg, st.Scopes)
 	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
-	client := oauth2.NewClient(ctx, tokenSource)
+	client := newOAuthClient(ctx, tokenSource)
 
 	spaces, err := listSpaces(ctx, client, *limit*2)
 	if err != nil {
@@ -549,7 +555,7 @@ func runChatSpacesMembers(args []string) error {
 	}
 	oauthCfg := oauthConfigFrom(cfg, st.Scopes)
 	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
-	client := oauth2.NewClient(ctx, tokenSource)
+	client := newOAuthClient(ctx, tokenSource)
 
 	aliases, _ := loadAliases()
 	members, err := listSpaceMembers(ctx, client, spaceName)
@@ -744,7 +750,7 @@ func runChatUsersAliasesSetFromSpace(args []string) error {
 	}
 	oauthCfg := oauthConfigFrom(cfg, st.Scopes)
 	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
-	client := oauth2.NewClient(ctx, tokenSource)
+	client := newOAuthClient(ctx, tokenSource)
 
 	me, _ := currentUserRef(ctx, client)
 	if strings.TrimSpace(me) == "" {
@@ -796,7 +802,7 @@ func runChatUsersAliasesInfer(args []string) error {
 	}
 	oauthCfg := oauthConfigFrom(cfg, st.Scopes)
 	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
-	client := oauth2.NewClient(ctx, tokenSource)
+	client := newOAuthClient(ctx, tokenSource)
 
 	spaces, err := listSpaces(ctx, client, *spaceLimit)
 	if err != nil {
@@ -959,7 +965,7 @@ func runChatMessagesList(args []string) error {
 
 	oauthCfg := oauthConfigFrom(cfg, st.Scopes)
 	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
-	client := oauth2.NewClient(ctx, tokenSource)
+	client := newOAuthClient(ctx, tokenSource)
 
 	items, err := listMessages(ctx, client, spaceName, *limit)
 	if err != nil {
@@ -1045,7 +1051,7 @@ func runChatMessagesSend(args []string) error {
 	}
 	oauthCfg := oauthConfigFrom(cfg, st.Scopes)
 	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
-	client := oauth2.NewClient(ctx, tokenSource)
+	client := newOAuthClient(ctx, tokenSource)
 
 	spaceName := ""
 	if spaceProvided {
@@ -1121,7 +1127,7 @@ func runChatMessagesWith(args []string) error {
 	}
 	oauthCfg := oauthConfigFrom(cfg, st.Scopes)
 	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
-	client := oauth2.NewClient(ctx, tokenSource)
+	client := newOAuthClient(ctx, tokenSource)
 
 	targetUser := ""
 	targetSpace := ""
@@ -1225,7 +1231,7 @@ func runChatMessagesRecent(args []string) error {
 	}
 	oauthCfg := oauthConfigFrom(cfg, st.Scopes)
 	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
-	client := oauth2.NewClient(ctx, tokenSource)
+	client := newOAuthClient(ctx, tokenSource)
 
 	targetUser := ""
 	targetSpace := ""
@@ -1350,7 +1356,7 @@ func runChatMessagesIncoming(args []string) error {
 	}
 	oauthCfg := oauthConfigFrom(cfg, st.Scopes)
 	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
-	client := oauth2.NewClient(ctx, tokenSource)
+	client := newOAuthClient(ctx, tokenSource)
 	aliases, _ := loadAliases()
 
 	targetSpaces := make([]string, 0, *spaceLimit)
@@ -1482,7 +1488,7 @@ func runChatMessagesPoll(args []string) error {
 	}
 	oauthCfg := oauthConfigFrom(cfg, st.Scopes)
 	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
-	client := oauth2.NewClient(ctx, tokenSource)
+	client := newOAuthClient(ctx, tokenSource)
 	aliases, _ := loadAliases()
 
 	targetSpaces := []string{}
@@ -2209,7 +2215,7 @@ func minInt(a, b int) int {
 	return b
 }
 
-func printJSON(v any) error {
+func writeJSON(v any) error {
 	pretty := strings.TrimSpace(os.Getenv("GCHATCTL_JSON_PRETTY")) == "1"
 	var (
 		b   []byte
@@ -2225,6 +2231,46 @@ func printJSON(v any) error {
 	}
 	fmt.Println(string(b))
 	return nil
+}
+
+func jsonEnvelopeEnabled() bool {
+	return strings.TrimSpace(os.Getenv("GCHATCTL_JSON_ENVELOPE")) == "1"
+}
+
+func printJSON(v any) error {
+	if jsonEnvelopeEnabled() {
+		return writeJSON(map[string]any{
+			"ok":   true,
+			"data": v,
+		})
+	}
+	return writeJSON(v)
+}
+
+func printJSONError(err error) error {
+	msg := "unknown error"
+	if err != nil {
+		msg = err.Error()
+	}
+	return writeJSON(map[string]any{
+		"ok": false,
+		"error": map[string]any{
+			"code":    "FATAL",
+			"message": msg,
+		},
+	})
+}
+
+func shouldPrintJSONError() bool {
+	if jsonEnvelopeEnabled() {
+		return true
+	}
+	for _, arg := range os.Args[1:] {
+		if arg == "--json" {
+			return true
+		}
+	}
+	return false
 }
 
 func aliasesPath() (string, error) {
@@ -2546,7 +2592,7 @@ func loginDeviceFlow(ctx context.Context, clientID, clientSecret string, scopes 
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := (&http.Client{Timeout: defaultHTTPTimeout}).Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -2611,7 +2657,7 @@ func pollDeviceToken(ctx context.Context, clientID, clientSecret, deviceCode str
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := (&http.Client{Timeout: defaultHTTPTimeout}).Do(req)
 	if err != nil {
 		return nil, false, false, err
 	}
@@ -2708,6 +2754,16 @@ func resolveMode(mode string, noOpen, interactive bool) string {
 		return strings.ToLower(mode)
 	default:
 		return ""
+	}
+}
+
+func newOAuthClient(ctx context.Context, tokenSource oauth2.TokenSource) *http.Client {
+	return &http.Client{
+		Timeout: defaultHTTPTimeout,
+		Transport: &oauth2.Transport{
+			Source: tokenSource,
+			Base:   http.DefaultTransport,
+		},
 	}
 }
 

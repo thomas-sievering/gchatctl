@@ -96,6 +96,12 @@ When user asks for analysis, parse JSON and summarize:
 
 Use exact timestamps in UTC when reporting "latest".
 
+If downstream automation requires a strict success/error wrapper, set:
+
+```powershell
+$env:GCHATCTL_JSON_ENVELOPE = "1"
+```
+
 ## Error Handling
 
 - If command returns `insufficient auth scopes`, run:

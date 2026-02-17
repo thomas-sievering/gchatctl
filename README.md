@@ -88,6 +88,7 @@ gchatctl chat poll --since 5m --interval 30s --iterations 3 --json
 
 - `--json` now outputs compact JSON by default (agent-friendly).
 - Set `GCHATCTL_JSON_PRETTY=1` to switch to pretty JSON for debugging.
+- Set `GCHATCTL_JSON_ENVELOPE=1` for envelope output: `{"ok":true,"data":...}` and `{"ok":false,"error":...}`.
 - Auth commands support JSON too: `auth setup --json`, `auth login --json`, `auth status --json`.
 
 ```powershell
@@ -97,6 +98,10 @@ gchatctl chat recent --name "Simon" --limit 10 --json
 # pretty JSON
 $env:GCHATCTL_JSON_PRETTY = "1"
 gchatctl chat inbox --since 15m --limit 200 --json
+
+# wrapped/enveloped JSON
+$env:GCHATCTL_JSON_ENVELOPE = "1"
+gchatctl chat recent --name "Simon" --limit 10 --json
 ```
 
 ## Files and Storage
