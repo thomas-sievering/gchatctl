@@ -49,10 +49,11 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
+          VERSION: ${{ github.ref_name }}
         run: |
           mkdir -p dist
           BIN_NAME="gchatctl-${GOOS}-${GOARCH}${{ matrix.ext }}"
-          go build -trimpath -ldflags="-s -w" -o "dist/${BIN_NAME}" .
+          go build -trimpath -ldflags="-s -w -X main.version=${VERSION}" -o "dist/${BIN_NAME}" .
 
       - name: package
         run: |

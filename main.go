@@ -34,6 +34,8 @@ const (
 	gcpChatAPIURL   = "https://console.cloud.google.com/apis/library/chat.googleapis.com"
 )
 
+var version = "dev"
+
 var defaultChatScopes = []string{
 	"https://www.googleapis.com/auth/chat.messages",
 	"https://www.googleapis.com/auth/chat.spaces.readonly",
@@ -187,7 +189,7 @@ func run() error {
 	case "chat":
 		return runChat(os.Args[2:])
 	case "version", "--version", "-v":
-		fmt.Println("gchatctl dev")
+		fmt.Printf("gchatctl %s\n", version)
 		return nil
 	case "help", "--help", "-h":
 		printRootHelp()
