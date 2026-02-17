@@ -22,11 +22,14 @@ gchatctl auth login --profile work --all-scopes
 # 3) List your spaces
 gchatctl chat spaces list --profile work --limit 20
 
-# 4) Read last 10 DM messages with a person
-gchatctl chat messages with --profile work --email user@company.com --limit 10
+# 4) Read what you received in last 15 minutes (all spaces)
+gchatctl chat inbox --profile work --since 15m --limit 200
 
-# 5) Send message
-gchatctl chat messages send --profile work --email user@company.com --text "hello"
+# 5) Read recent messages from a person (name lookup, no ID/email needed)
+gchatctl chat recent --profile work --name "Simon" --limit 10
+
+# 6) Send message
+gchatctl chat send --profile work --email user@company.com --text "hello"
 ```
 
 ## Install
@@ -49,7 +52,7 @@ End users do **not** need Go if you ship the binary.
 
 ```powershell
 gchatctl auth setup
-gchatctl auth login --profile work --all-scopes
+gchatctl auth login --profile work --all-scopes --json
 gchatctl auth status --profile work --json
 gchatctl auth logout --profile work
 ```
@@ -63,29 +66,37 @@ gchatctl chat spaces list --profile work --limit 100
 ### Messages
 
 ```powershell
-# Read by explicit space
-gchatctl chat messages list --profile work --space spaces/AAA... --limit 20
+# Primary commands (recommended)
+gchatctl chat inbox --profile work --since 15m --limit 200
+gchatctl chat recent --profile work --name "Simon" --limit 10
+gchatctl chat send --profile work --email user@company.com --text "hello"
 
-# Send message by person or by space
-gchatctl chat messages send --profile work --email user@company.com --text "hello"
-gchatctl chat messages send --profile work --space spaces/AAA... --text "hello"
+# Read by explicit space (advanced)
+gchatctl chat list --profile work --space spaces/AAA... --limit 20
 
-# Read DM history with a person
-gchatctl chat messages with --profile work --email user@company.com --limit 10
+# Full DM history with a person (includes both sides)
+gchatctl chat with --profile work --name "Simon" --limit 20
+
+# Send directly to a known space
+gchatctl chat send --profile work --space spaces/AAA... --text "hello"
+
+# Poll for new messages over time
+gchatctl chat poll --profile work --since 5m --interval 30s --iterations 3 --json
 ```
 
 ## JSON Output
 
 - `--json` now outputs compact JSON by default (agent-friendly).
 - Set `GCHATCTL_JSON_PRETTY=1` to switch to pretty JSON for debugging.
+- Auth commands support JSON too: `auth setup --json`, `auth login --json`, `auth status --json`.
 
 ```powershell
 # compact JSON
-gchatctl chat messages with --profile work --email user@company.com --limit 10 --json
+gchatctl chat recent --profile work --name "Simon" --limit 10 --json
 
 # pretty JSON
 $env:GCHATCTL_JSON_PRETTY = "1"
-gchatctl chat messages with --profile work --email user@company.com --limit 10 --json
+gchatctl chat inbox --profile work --since 15m --limit 200 --json
 ```
 
 ## Files and Storage

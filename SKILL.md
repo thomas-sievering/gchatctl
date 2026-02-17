@@ -27,9 +27,9 @@ If mode is missing, infer from user request:
 ## Examples
 
 - User says: "give me last 10 messages with simon"
-  - Run: `gchatctl chat messages with --profile work --email simon@company.com --limit 10 --json`
+  - Run: `gchatctl chat recent --profile work --name "Simon" --limit 10 --json`
 - User says: "send hi to simon"
-  - Run: `gchatctl chat messages send --profile work --email simon@company.com --text "hi"`
+  - Run: `gchatctl chat send --profile work --email simon@company.com --text "hi"`
 - User says: "list my spaces"
   - Run: `gchatctl chat spaces list --profile work --limit 100 --json`
 
@@ -46,31 +46,33 @@ gchatctl auth status --profile work --json
 If not authenticated:
 
 ```powershell
-gchatctl auth login --profile work --all-scopes
+gchatctl auth login --profile work --all-scopes --json
 ```
 
-### 2) Resolve destination explicitly
+### 2) Resolve destination with built-in name lookup
 
-For person-based tasks use:
+For person-based reads, prefer:
 
 ```powershell
-gchatctl chat dm find --profile work --email user@company.com --json
+gchatctl chat recent --profile work --name "Simon" --limit 20 --json
 ```
 
-Do not guess DM space IDs if email is known.
+Use `chat recent` when user asks what a person said (messages from that sender).
+Use `chat with` when user asks for full DM history (both participants).
+If exact identity is required, use `--email` or `--user`.
 
 ### 3) Read messages (compact JSON for agent parsing)
 
 Preferred:
 
 ```powershell
-gchatctl chat messages with --profile work --email user@company.com --limit 20 --json
+gchatctl chat recent --profile work --name "Simon" --limit 20 --json
 ```
 
 Or by space:
 
 ```powershell
-gchatctl chat messages list --profile work --space spaces/AAA... --limit 20 --json
+gchatctl chat list --profile work --space spaces/AAA... --limit 20 --json
 ```
 
 ### 4) Send messages safely
@@ -78,7 +80,7 @@ gchatctl chat messages list --profile work --space spaces/AAA... --limit 20 --js
 Always echo the outgoing text in the answer before sending.
 
 ```powershell
-gchatctl chat messages send --profile work --email user@company.com --text "..."
+gchatctl chat send --profile work --email user@company.com --text "..."
 ```
 
 After send, report destination space and message ID from command output.
@@ -98,5 +100,6 @@ Use exact timestamps in UTC when reporting "latest".
 - If command returns `insufficient auth scopes`, run:
   - `gchatctl auth login --profile work --all-scopes`
 - If command returns `Google Chat app not found`, stop and instruct user to configure Chat app in Google Cloud.
-- If user asks for "messages with <name>" but only a name is provided, ask for email or run lookup flow first.
+- If user asks for "messages with <name>" and only a name is provided, use `chat recent --name "<name>"` first.
+- Prefer explicit aliases (`chat users aliases set` / `set-from-space`) over `aliases infer`; treat inference as fallback only.
 - If sending fails, do not retry blindly; show exact API error and ask for confirmation before retry.

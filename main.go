@@ -207,8 +207,10 @@ func printRootHelp() {
 	fmt.Println("  auth login   Authenticate and save OAuth tokens")
 	fmt.Println("  auth status  Show auth status")
 	fmt.Println("  auth logout  Remove saved token")
+	fmt.Println("  chat inbox   Incoming messages from last N minutes")
+	fmt.Println("  chat recent  Recent messages from a person")
+	fmt.Println("  chat send    Send a message")
 	fmt.Println("  chat spaces  List spaces")
-	fmt.Println("  chat messages List messages")
 	fmt.Println("  version      Show version")
 }
 
@@ -238,8 +240,8 @@ func runAuth(args []string) error {
 
 func printAuthHelp() {
 	fmt.Println("gchatctl auth commands:")
-	fmt.Println("  auth setup [--open]")
-	fmt.Println("  auth login [--profile default] [--all-scopes] [--client-id ...] [--scopes comma,list]")
+	fmt.Println("  auth setup [--open] [--json]")
+	fmt.Println("  auth login [--profile default] [--all-scopes] [--client-id ...] [--scopes comma,list] [--json]")
 	fmt.Println("  auth status [--profile default] [--json]")
 	fmt.Println("  auth logout [--profile default]")
 }
@@ -251,10 +253,24 @@ func runChat(args []string) error {
 	}
 
 	switch args[0] {
+	case "inbox":
+		return runChatMessagesIncoming(args[1:])
+	case "incoming":
+		return runChatMessagesIncoming(args[1:])
+	case "recent":
+		return runChatMessagesRecent(args[1:])
+	case "with":
+		return runChatMessagesWith(args[1:])
+	case "send":
+		return runChatMessagesSend(args[1:])
+	case "list":
+		return runChatMessagesList(args[1:])
+	case "poll":
+		return runChatMessagesPoll(args[1:])
 	case "spaces":
 		return runChatSpaces(args[1:])
-	case "messages":
-		return runChatMessages(args[1:])
+	case "users":
+		return runChatUsers(args[1:])
 	case "help", "--help", "-h":
 		printChatHelp()
 		return nil
@@ -266,76 +282,14 @@ func runChat(args []string) error {
 
 func printChatHelp() {
 	fmt.Println("gchatctl chat commands:")
-	fmt.Println("  chat spaces list [--profile default] [--limit 100] [--json]")
-	fmt.Println("  chat messages list --space spaces/AAA... [--profile default] [--limit 50] [--json]")
-	fmt.Println("  chat messages send (--space spaces/AAA... | --email user@company.com | --user users/...) --text \"...\" [--profile default] [--json]")
-	fmt.Println("  chat messages with (--email user@company.com | --user users/...) [--profile default] [--limit 10] [--json]")
-}
-
-func runChatDM(args []string) error {
-	if len(args) == 0 {
-		printChatDMHelp()
-		return nil
-	}
-	switch args[0] {
-	case "find":
-		return runChatDMFind(args[1:])
-	case "help", "--help", "-h":
-		printChatDMHelp()
-		return nil
-	default:
-		printChatDMHelp()
-		return fmt.Errorf("unknown chat dm command %q", args[0])
-	}
-}
-
-func printChatDMHelp() {
-	fmt.Println("gchatctl chat dm commands:")
-	fmt.Println("  chat dm find (--email user@company.com | --user users/...) [--profile default] [--json]")
-}
-
-func runChatDMFind(args []string) error {
-	fs := flag.NewFlagSet("chat dm find", flag.ContinueOnError)
-	profile := fs.String("profile", "", "profile name")
-	email := fs.String("email", "", "user email (maps to users/<email>)")
-	user := fs.String("user", "", "user resource name (users/...)")
-	jsonOut := fs.Bool("json", false, "print JSON")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if strings.TrimSpace(*email) == "" && strings.TrimSpace(*user) == "" {
-		return errors.New("one of --email or --user is required")
-	}
-	if strings.TrimSpace(*email) != "" && strings.TrimSpace(*user) != "" {
-		return errors.New("use either --email or --user, not both")
-	}
-
-	targetUser := normalizeUserRef(firstNonEmpty(*user, *email))
-	ctx := context.Background()
-	selectedProfile, cfg, st, err := loadAuthContext(*profile)
-	if err != nil {
-		return err
-	}
-	oauthCfg := oauthConfigFrom(cfg, st.Scopes)
-	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
-	client := oauth2.NewClient(ctx, tokenSource)
-
-	space, err := findDirectMessageSpace(ctx, client, targetUser)
-	if err != nil {
-		return err
-	}
-	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
-		return err
-	}
-	if *jsonOut {
-		return printJSON(map[string]any{
-			"profile": selectedProfile,
-			"target":  targetUser,
-			"space":   space,
-		})
-	}
-	fmt.Printf("Direct message with %s: %s\n", targetUser, space.Name)
-	return nil
+	fmt.Println("  chat inbox [--profile default] [--since 10m] [--limit 200] [--json]")
+	fmt.Println("  chat recent (--name \"Simon\" | --email user@company.com | --user users/...) [--profile default] [--limit 10] [--json]")
+	fmt.Println("  chat with (--name \"Simon\" | --email user@company.com | --user users/...) [--profile default] [--limit 10] [--json]")
+	fmt.Println("  chat send (--space spaces/AAA... | --email user@company.com | --user users/...) --text \"...\" [--profile default] [--json]")
+	fmt.Println("  chat list --space spaces/AAA... [--profile default] [--limit 50] [--json]")
+	fmt.Println("  chat poll [--space spaces/AAA...] [--profile default] [--since 5m] [--interval 30s] [--iterations 1] [--limit 100] [--json]")
+	fmt.Println("  chat spaces ...   (list, unread, dm, members)")
+	fmt.Println("  chat users aliases ...")
 }
 
 func runChatSpaces(args []string) error {
@@ -346,6 +300,12 @@ func runChatSpaces(args []string) error {
 	switch args[0] {
 	case "list":
 		return runChatSpacesList(args[1:])
+	case "unread":
+		return runChatSpacesUnread(args[1:])
+	case "dm":
+		return runChatSpacesDM(args[1:])
+	case "members":
+		return runChatSpacesMembers(args[1:])
 	case "help", "--help", "-h":
 		printChatSpacesHelp()
 		return nil
@@ -358,6 +318,9 @@ func runChatSpaces(args []string) error {
 func printChatSpacesHelp() {
 	fmt.Println("gchatctl chat spaces commands:")
 	fmt.Println("  chat spaces list [--profile default] [--limit 100] [--json]")
+	fmt.Println("  chat spaces unread [--profile default] [--limit 100] [--json]")
+	fmt.Println("  chat spaces dm [--profile default] [--limit 100] [--json]")
+	fmt.Println("  chat spaces members --space spaces/AAA... [--profile default] [--json]")
 }
 
 func runChatSpacesList(args []string) error {
@@ -641,27 +604,6 @@ func runChatSpacesMembers(args []string) error {
 		fmt.Printf("- %s  (%s)\n", label, m.User)
 	}
 	return nil
-}
-
-func runChatMessages(args []string) error {
-	if len(args) == 0 {
-		printChatMessagesHelp()
-		return nil
-	}
-	switch args[0] {
-	case "list":
-		return runChatMessagesList(args[1:])
-	case "send":
-		return runChatMessagesSend(args[1:])
-	case "with":
-		return runChatMessagesWith(args[1:])
-	case "help", "--help", "-h":
-		printChatMessagesHelp()
-		return nil
-	default:
-		printChatMessagesHelp()
-		return fmt.Errorf("unknown chat messages command %q", args[0])
-	}
 }
 
 func runChatUsers(args []string) error {
@@ -1007,15 +949,8 @@ func runChatUsersAliasesInfer(args []string) error {
 	return nil
 }
 
-func printChatMessagesHelp() {
-	fmt.Println("gchatctl chat messages commands:")
-	fmt.Println("  chat messages list --space spaces/AAA... [--profile default] [--limit 50] [--json]")
-	fmt.Println("  chat messages send (--space spaces/AAA... | --email user@company.com | --user users/...) --text \"...\" [--profile default] [--json]")
-	fmt.Println("  chat messages with (--email user@company.com | --user users/...) [--profile default] [--limit 10] [--json]")
-}
-
 func runChatMessagesList(args []string) error {
-	fs := flag.NewFlagSet("chat messages list", flag.ContinueOnError)
+	fs := flag.NewFlagSet("chat list", flag.ContinueOnError)
 	profile := fs.String("profile", "", "profile name")
 	space := fs.String("space", "", "space resource name or ID")
 	limit := fs.Int("limit", 50, "max messages to return")
@@ -1028,7 +963,7 @@ func runChatMessagesList(args []string) error {
 		return errors.New("--limit must be greater than 0")
 	}
 	if strings.TrimSpace(*space) == "" {
-		return errors.New("--space is required (example: --space spaces/AAA...); for person chat use: gchatctl chat messages with --email user@company.com")
+		return errors.New("--space is required (example: --space spaces/AAA...); for person chat use: gchatctl chat with --name \"Simon\"")
 	}
 	spaceName := normalizeSpaceName(*space)
 
@@ -1095,7 +1030,7 @@ func runChatMessagesList(args []string) error {
 }
 
 func runChatMessagesSend(args []string) error {
-	fs := flag.NewFlagSet("chat messages send", flag.ContinueOnError)
+	fs := flag.NewFlagSet("chat send", flag.ContinueOnError)
 	profile := fs.String("profile", "", "profile name")
 	space := fs.String("space", "", "space resource name or ID")
 	email := fs.String("email", "", "recipient email (maps to users/<email>)")
@@ -1167,11 +1102,13 @@ func runChatMessagesSend(args []string) error {
 }
 
 func runChatMessagesWith(args []string) error {
-	fs := flag.NewFlagSet("chat messages with", flag.ContinueOnError)
+	fs := flag.NewFlagSet("chat with", flag.ContinueOnError)
 	profile := fs.String("profile", "", "profile name")
 	email := fs.String("email", "", "user email (maps to users/<email>)")
 	user := fs.String("user", "", "user resource name (users/...)")
+	name := fs.String("name", "", "peer display name in DM spaces (example: Simon)")
 	limit := fs.Int("limit", 10, "max messages to return")
+	scanLimit := fs.Int("scan-limit", 200, "max DM spaces scanned when --name is used")
 	jsonOut := fs.Bool("json", false, "print JSON")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -1179,14 +1116,26 @@ func runChatMessagesWith(args []string) error {
 	if *limit <= 0 {
 		return errors.New("--limit must be greater than 0")
 	}
-	if strings.TrimSpace(*email) == "" && strings.TrimSpace(*user) == "" {
-		return errors.New("one of --email or --user is required")
+	if *scanLimit <= 0 {
+		return errors.New("--scan-limit must be greater than 0")
 	}
-	if strings.TrimSpace(*email) != "" && strings.TrimSpace(*user) != "" {
-		return errors.New("use either --email or --user, not both")
+	identityCount := 0
+	if strings.TrimSpace(*email) != "" {
+		identityCount++
+	}
+	if strings.TrimSpace(*user) != "" {
+		identityCount++
+	}
+	if strings.TrimSpace(*name) != "" {
+		identityCount++
+	}
+	if identityCount == 0 {
+		return errors.New("one of --email or --user or --name is required")
+	}
+	if identityCount > 1 {
+		return errors.New("use exactly one of --email, --user, or --name")
 	}
 
-	targetUser := normalizeUserRef(firstNonEmpty(*user, *email))
 	ctx := context.Background()
 	selectedProfile, cfg, st, err := loadAuthContext(*profile)
 	if err != nil {
@@ -1196,16 +1145,28 @@ func runChatMessagesWith(args []string) error {
 	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
 	client := oauth2.NewClient(ctx, tokenSource)
 
-	space, err := findDirectMessageSpace(ctx, client, targetUser)
-	if err != nil {
-		return err
+	targetUser := ""
+	targetSpace := ""
+	resolvedDisplay := ""
+	if strings.TrimSpace(*name) != "" {
+		targetUser, targetSpace, resolvedDisplay, err = resolveDMByName(ctx, client, *name, *scanLimit)
+		if err != nil {
+			return err
+		}
+	} else {
+		targetUser = normalizeUserRef(firstNonEmpty(*user, *email))
+		space, ferr := findDirectMessageSpace(ctx, client, targetUser)
+		if ferr != nil {
+			return ferr
+		}
+		targetSpace = space.Name
 	}
-	items, err := listMessages(ctx, client, space.Name, *limit)
+	items, err := listMessages(ctx, client, targetSpace, *limit)
 	if err != nil {
 		return err
 	}
 	aliases, _ := loadAliases()
-	senderNames, _ := listSpaceSenderNames(ctx, client, space.Name)
+	senderNames, _ := listSpaceSenderNames(ctx, client, targetSpace)
 	for i := range items {
 		if strings.TrimSpace(items[i].Sender.DisplayName) == "" {
 			if v := strings.TrimSpace(senderNames[items[i].Sender.Name]); v != "" {
@@ -1223,19 +1184,20 @@ func runChatMessagesWith(args []string) error {
 
 	if *jsonOut {
 		out := map[string]any{
-			"profile":  selectedProfile,
-			"target":   targetUser,
-			"space":    space.Name,
-			"count":    len(items),
-			"messages": items,
+			"profile":         selectedProfile,
+			"target":          targetUser,
+			"space":           targetSpace,
+			"count":           len(items),
+			"messages":        items,
+			"resolved_target": resolvedDisplay,
 		}
 		return printJSON(out)
 	}
 	if len(items) == 0 {
-		fmt.Printf("No messages found with %s (%s)\n", targetUser, space.Name)
+		fmt.Printf("No messages found with %s (%s)\n", firstNonEmpty(resolvedDisplay, targetUser), targetSpace)
 		return nil
 	}
-	fmt.Printf("Messages (%d) with %s in %s:\n", len(items), targetUser, space.Name)
+	fmt.Printf("Messages (%d) with %s in %s:\n", len(items), firstNonEmpty(resolvedDisplay, targetUser), targetSpace)
 	for _, m := range items {
 		when := firstNonEmpty(strings.TrimSpace(m.CreateTime), "unknown-time")
 		sender := firstNonEmpty(strings.TrimSpace(m.Sender.DisplayName), strings.TrimSpace(m.Sender.Name), "unknown-sender")
@@ -1245,11 +1207,14 @@ func runChatMessagesWith(args []string) error {
 	return nil
 }
 
-func runChatMessagesSenders(args []string) error {
-	fs := flag.NewFlagSet("chat messages senders", flag.ContinueOnError)
+func runChatMessagesRecent(args []string) error {
+	fs := flag.NewFlagSet("chat recent", flag.ContinueOnError)
 	profile := fs.String("profile", "", "profile name")
-	space := fs.String("space", "", "space resource name or ID")
-	limit := fs.Int("limit", 5, "max sender names to return")
+	email := fs.String("email", "", "user email (maps to users/<email>)")
+	user := fs.String("user", "", "user resource name (users/...)")
+	name := fs.String("name", "", "peer display name in DM spaces (example: Simon)")
+	limit := fs.Int("limit", 10, "max messages to return")
+	scanLimit := fs.Int("scan-limit", 200, "max DM spaces scanned when --name is used")
 	jsonOut := fs.Bool("json", false, "print JSON")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -1257,10 +1222,26 @@ func runChatMessagesSenders(args []string) error {
 	if *limit <= 0 {
 		return errors.New("--limit must be greater than 0")
 	}
-	if strings.TrimSpace(*space) == "" {
-		return errors.New("--space is required (example: --space spaces/AAA...)")
+	if *scanLimit <= 0 {
+		return errors.New("--scan-limit must be greater than 0")
 	}
-	spaceName := normalizeSpaceName(*space)
+
+	identityCount := 0
+	if strings.TrimSpace(*email) != "" {
+		identityCount++
+	}
+	if strings.TrimSpace(*user) != "" {
+		identityCount++
+	}
+	if strings.TrimSpace(*name) != "" {
+		identityCount++
+	}
+	if identityCount == 0 {
+		return errors.New("one of --email or --user or --name is required")
+	}
+	if identityCount > 1 {
+		return errors.New("use exactly one of --email, --user, or --name")
+	}
 
 	ctx := context.Background()
 	selectedProfile, cfg, st, err := loadAuthContext(*profile)
@@ -1271,23 +1252,36 @@ func runChatMessagesSenders(args []string) error {
 	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
 	client := oauth2.NewClient(ctx, tokenSource)
 
-	messageFetchLimit := *limit * 20
-	if messageFetchLimit < 50 {
-		messageFetchLimit = 50
-	}
-	if messageFetchLimit > 500 {
-		messageFetchLimit = 500
+	targetUser := ""
+	targetSpace := ""
+	resolvedDisplay := ""
+	if strings.TrimSpace(*name) != "" {
+		targetUser, targetSpace, resolvedDisplay, err = resolveDMByName(ctx, client, *name, *scanLimit)
+		if err != nil {
+			return err
+		}
+	} else {
+		targetUser = normalizeUserRef(firstNonEmpty(*user, *email))
+		space, ferr := findDirectMessageSpace(ctx, client, targetUser)
+		if ferr != nil {
+			return ferr
+		}
+		targetSpace = space.Name
 	}
 
-	items, err := listMessages(ctx, client, spaceName, messageFetchLimit)
+	fetchLimit := *limit * 12
+	if fetchLimit < 50 {
+		fetchLimit = 50
+	}
+	if fetchLimit > 500 {
+		fetchLimit = 500
+	}
+	items, err := listMessages(ctx, client, targetSpace, fetchLimit)
 	if err != nil {
 		return err
 	}
 	aliases, _ := loadAliases()
-	senderNames, err := listSpaceSenderNames(ctx, client, spaceName)
-	if err != nil {
-		return err
-	}
+	senderNames, _ := listSpaceSenderNames(ctx, client, targetSpace)
 	for i := range items {
 		if strings.TrimSpace(items[i].Sender.DisplayName) == "" {
 			if v := strings.TrimSpace(senderNames[items[i].Sender.Name]); v != "" {
@@ -1299,33 +1293,182 @@ func runChatMessagesSenders(args []string) error {
 			}
 		}
 	}
-	names := recentSenderNames(items, *limit)
+
+	fromTarget := make([]ChatMessage, 0, *limit)
+	targetNorm := strings.ToLower(strings.TrimSpace(normalizeUserRef(targetUser)))
+	for _, m := range items {
+		senderNorm := strings.ToLower(strings.TrimSpace(normalizeUserRef(m.Sender.Name)))
+		if senderNorm != targetNorm {
+			continue
+		}
+		fromTarget = append(fromTarget, m)
+		if len(fromTarget) >= *limit {
+			break
+		}
+	}
+
 	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
 		return err
 	}
 
 	if *jsonOut {
 		out := map[string]any{
-			"profile": selectedProfile,
-			"space":   spaceName,
-			"count":   len(names),
-			"names":   names,
+			"profile":         selectedProfile,
+			"target":          targetUser,
+			"space":           targetSpace,
+			"count":           len(fromTarget),
+			"messages":        fromTarget,
+			"resolved_target": resolvedDisplay,
 		}
 		return printJSON(out)
 	}
-	if len(names) == 0 {
-		fmt.Printf("No sender names found in %q\n", spaceName)
+	label := firstNonEmpty(resolvedDisplay, targetUser)
+	if len(fromTarget) == 0 {
+		fmt.Printf("No recent messages found from %s in %s\n", label, targetSpace)
 		return nil
 	}
-	fmt.Printf("Recent sender names (%d) in %q:\n", len(names), spaceName)
-	for _, n := range names {
-		fmt.Printf("- %s\n", n)
+	fmt.Printf("Recent messages (%d) from %s in %s:\n", len(fromTarget), label, targetSpace)
+	for _, m := range fromTarget {
+		when := firstNonEmpty(strings.TrimSpace(m.CreateTime), "unknown-time")
+		sender := firstNonEmpty(strings.TrimSpace(m.Sender.DisplayName), strings.TrimSpace(m.Sender.Name), "unknown-sender")
+		text := compactMessageText(m.Text)
+		fmt.Printf("- %s  %s: %s\n", when, sender, text)
+	}
+	return nil
+}
+
+func runChatMessagesIncoming(args []string) error {
+	fs := flag.NewFlagSet("chat incoming", flag.ContinueOnError)
+	profile := fs.String("profile", "", "profile name")
+	space := fs.String("space", "", "optional single space resource name or ID")
+	since := fs.Duration("since", 10*time.Minute, "look back window")
+	limit := fs.Int("limit", 200, "max messages returned")
+	fetchLimit := fs.Int("fetch-limit", 100, "max messages fetched per space before filtering")
+	spaceLimit := fs.Int("space-limit", 200, "max spaces scanned when --space is not provided")
+	includeSelf := fs.Bool("include-self", false, "include messages sent by current user")
+	jsonOut := fs.Bool("json", false, "print JSON")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *since <= 0 {
+		return errors.New("--since must be greater than 0")
+	}
+	if *limit <= 0 {
+		return errors.New("--limit must be greater than 0")
+	}
+	if *fetchLimit <= 0 {
+		return errors.New("--fetch-limit must be greater than 0")
+	}
+	if *spaceLimit <= 0 {
+		return errors.New("--space-limit must be greater than 0")
+	}
+
+	ctx := context.Background()
+	selectedProfile, cfg, st, err := loadAuthContext(*profile)
+	if err != nil {
+		return err
+	}
+	oauthCfg := oauthConfigFrom(cfg, st.Scopes)
+	tokenSource := oauthCfg.TokenSource(ctx, &st.Token)
+	client := oauth2.NewClient(ctx, tokenSource)
+	aliases, _ := loadAliases()
+
+	targetSpaces := make([]string, 0, *spaceLimit)
+	spaceCatalog := make([]ChatSpace, 0, *spaceLimit)
+	if strings.TrimSpace(*space) != "" {
+		sn := normalizeSpaceName(*space)
+		targetSpaces = append(targetSpaces, sn)
+		spaceCatalog = append(spaceCatalog, ChatSpace{Name: sn})
+	} else {
+		spaces, lerr := listSpaces(ctx, client, *spaceLimit)
+		if lerr != nil {
+			return lerr
+		}
+		spaceCatalog = append(spaceCatalog, spaces...)
+		for _, s := range spaces {
+			targetSpaces = append(targetSpaces, s.Name)
+		}
+	}
+
+	me, _ := currentUserRef(ctx, client)
+	if strings.TrimSpace(me) == "" && !*includeSelf {
+		me = inferCurrentUserFromDMS(ctx, client, spaceCatalog)
+	}
+	meNorm := strings.TrimSpace(normalizeUserRef(me))
+	cutoff := time.Now().UTC().Add(-*since)
+
+	found := make([]PolledMessage, 0, minInt(*limit, 256))
+	for _, sp := range targetSpaces {
+		msgs, lerr := listMessages(ctx, client, sp, *fetchLimit)
+		if lerr != nil {
+			continue
+		}
+		spaceNames, _ := listSpaceSenderNames(ctx, client, sp)
+		for _, m := range msgs {
+			msgTime, ok := parseMessageTime(m.CreateTime)
+			if !ok || msgTime.Before(cutoff) {
+				continue
+			}
+			if !*includeSelf && meNorm != "" && normalizeUserRef(m.Sender.Name) == meNorm {
+				continue
+			}
+			sender := firstNonEmpty(
+				strings.TrimSpace(m.Sender.DisplayName),
+				strings.TrimSpace(spaceNames[m.Sender.Name]),
+				strings.TrimSpace(aliases[normalizeUserRef(m.Sender.Name)]),
+				strings.TrimSpace(m.Sender.Name),
+			)
+			found = append(found, PolledMessage{
+				Space:      sp,
+				Name:       m.Name,
+				CreateTime: m.CreateTime,
+				Sender:     sender,
+				SenderUser: m.Sender.Name,
+				Text:       compactMessageText(m.Text),
+			})
+		}
+	}
+
+	sort.Slice(found, func(a, b int) bool {
+		ta, oka := parseMessageTime(found[a].CreateTime)
+		tb, okb := parseMessageTime(found[b].CreateTime)
+		if !oka || !okb {
+			return found[a].CreateTime > found[b].CreateTime
+		}
+		return ta.After(tb)
+	})
+	if len(found) > *limit {
+		found = found[:*limit]
+	}
+
+	if err := saveRefreshedTokenIfChanged(selectedProfile, st, tokenSource); err != nil {
+		return err
+	}
+
+	if *jsonOut {
+		out := map[string]any{
+			"profile":      selectedProfile,
+			"count":        len(found),
+			"since_window": since.String(),
+			"cutoff_utc":   cutoff.Format(time.RFC3339Nano),
+			"spaces":       len(targetSpaces),
+			"messages":     found,
+		}
+		return printJSON(out)
+	}
+	if len(found) == 0 {
+		fmt.Printf("No incoming messages in the last %s\n", since.String())
+		return nil
+	}
+	fmt.Printf("Incoming messages (%d) in the last %s:\n", len(found), since.String())
+	for _, m := range found {
+		fmt.Printf("- %s  %s  %s: %s\n", m.CreateTime, m.Space, m.Sender, m.Text)
 	}
 	return nil
 }
 
 func runChatMessagesPoll(args []string) error {
-	fs := flag.NewFlagSet("chat messages poll", flag.ContinueOnError)
+	fs := flag.NewFlagSet("chat poll", flag.ContinueOnError)
 	profile := fs.String("profile", "", "profile name")
 	space := fs.String("space", "", "optional single space resource name or ID")
 	since := fs.Duration("since", 5*time.Minute, "look back window for first poll")
@@ -1457,23 +1600,37 @@ func runChatMessagesPoll(args []string) error {
 func runAuthSetup(args []string) error {
 	fs := flag.NewFlagSet("auth setup", flag.ContinueOnError)
 	openLinks := fs.Bool("open", false, "open setup links in browser")
+	jsonOut := fs.Bool("json", false, "print JSON")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 
-	fmt.Println("Google OAuth setup for gchatctl:")
-	fmt.Println("1) Enable Google Chat API:")
-	fmt.Printf("   %s\n", gcpChatAPIURL)
-	fmt.Println("2) Configure OAuth consent screen (External or Internal):")
-	fmt.Printf("   %s\n", gcpConsentURL)
-	fmt.Println("3) Create OAuth Client ID:")
-	fmt.Println("   - Application type: Desktop app (recommended for CLI)")
-	fmt.Printf("   - Page: %s\n", gcpCredsURL)
-	fmt.Println("4) Copy the Client ID and run:")
-	fmt.Println("   gchatctl auth login --client-id <YOUR_CLIENT_ID>")
-	fmt.Println()
-	fmt.Println("Optional scopes override:")
-	fmt.Println("   gchatctl auth login --client-id <YOUR_CLIENT_ID> --scopes https://www.googleapis.com/auth/chat.messages,https://www.googleapis.com/auth/chat.spaces.readonly")
+	if *jsonOut {
+		out := map[string]any{
+			"chat_api_url":       gcpChatAPIURL,
+			"consent_screen_url": gcpConsentURL,
+			"credentials_url":    gcpCredsURL,
+			"login_example":      "gchatctl auth login --client-id <YOUR_CLIENT_ID>",
+			"scopes_example":     "gchatctl auth login --client-id <YOUR_CLIENT_ID> --scopes https://www.googleapis.com/auth/chat.messages,https://www.googleapis.com/auth/chat.spaces.readonly",
+		}
+		if err := printJSON(out); err != nil {
+			return err
+		}
+	} else {
+		fmt.Println("Google OAuth setup for gchatctl:")
+		fmt.Println("1) Enable Google Chat API:")
+		fmt.Printf("   %s\n", gcpChatAPIURL)
+		fmt.Println("2) Configure OAuth consent screen (External or Internal):")
+		fmt.Printf("   %s\n", gcpConsentURL)
+		fmt.Println("3) Create OAuth Client ID:")
+		fmt.Println("   - Application type: Desktop app (recommended for CLI)")
+		fmt.Printf("   - Page: %s\n", gcpCredsURL)
+		fmt.Println("4) Copy the Client ID and run:")
+		fmt.Println("   gchatctl auth login --client-id <YOUR_CLIENT_ID>")
+		fmt.Println()
+		fmt.Println("Optional scopes override:")
+		fmt.Println("   gchatctl auth login --client-id <YOUR_CLIENT_ID> --scopes https://www.googleapis.com/auth/chat.messages,https://www.googleapis.com/auth/chat.spaces.readonly")
+	}
 
 	if !*openLinks {
 		return nil
@@ -1863,6 +2020,164 @@ func inferCurrentUserFromDMS(ctx context.Context, client *http.Client, spaces []
 	return bestID
 }
 
+type dmNameResolution struct {
+	Space   string
+	User    string
+	Display string
+	Score   int
+}
+
+func resolveDMByName(ctx context.Context, client *http.Client, rawName string, scanLimit int) (string, string, string, error) {
+	query := normalizeLookup(rawName)
+	if query == "" {
+		return "", "", "", errors.New("--name cannot be empty")
+	}
+
+	aliases, _ := loadAliases()
+	aliasMatches := make([]dmNameResolution, 0, 4)
+	for userRef, display := range aliases {
+		user := normalizeUserRef(userRef)
+		score := personMatchScore(query, display, user)
+		if score <= 0 {
+			continue
+		}
+		aliasMatches = append(aliasMatches, dmNameResolution{
+			User:    user,
+			Display: strings.TrimSpace(display),
+			Score:   score,
+		})
+	}
+	if len(aliasMatches) > 0 {
+		sort.Slice(aliasMatches, func(i, j int) bool {
+			if aliasMatches[i].Score != aliasMatches[j].Score {
+				return aliasMatches[i].Score > aliasMatches[j].Score
+			}
+			li := strings.ToLower(firstNonEmpty(aliasMatches[i].Display, aliasMatches[i].User))
+			lj := strings.ToLower(firstNonEmpty(aliasMatches[j].Display, aliasMatches[j].User))
+			return li < lj
+		})
+		if len(aliasMatches) > 1 && aliasMatches[0].Score == aliasMatches[1].Score {
+			choices := make([]string, 0, minInt(3, len(aliasMatches)))
+			for i := 0; i < len(aliasMatches) && i < 3; i++ {
+				label := firstNonEmpty(aliasMatches[i].Display, aliasMatches[i].User)
+				choices = append(choices, fmt.Sprintf("%s (%s)", label, aliasMatches[i].User))
+			}
+			return "", "", "", fmt.Errorf("name %q is ambiguous in aliases; matches: %s; use --email or --user", strings.TrimSpace(rawName), strings.Join(choices, ", "))
+		}
+		space, err := findDirectMessageSpace(ctx, client, aliasMatches[0].User)
+		if err == nil && strings.TrimSpace(space.Name) != "" {
+			return aliasMatches[0].User, space.Name, aliasMatches[0].Display, nil
+		}
+	}
+
+	spaceFetchLimit := scanLimit * 3
+	if spaceFetchLimit < 100 {
+		spaceFetchLimit = 100
+	}
+	spaces, err := listSpaces(ctx, client, spaceFetchLimit)
+	if err != nil {
+		return "", "", "", err
+	}
+
+	me, _ := currentUserRef(ctx, client)
+	if strings.TrimSpace(me) == "" {
+		me = inferCurrentUserFromDMS(ctx, client, spaces)
+	}
+
+	matches := make([]dmNameResolution, 0, 8)
+	dmScanned := 0
+	for _, s := range spaces {
+		if s.SpaceType != "DIRECT_MESSAGE" {
+			continue
+		}
+		dmScanned++
+		if dmScanned > scanLimit {
+			break
+		}
+		peerUser, peerName, derr := dmPeerForSpace(ctx, client, s.Name, me)
+		if derr != nil || strings.TrimSpace(peerUser) == "" {
+			continue
+		}
+		peerUser = normalizeUserRef(peerUser)
+		display := strings.TrimSpace(peerName)
+		if display == "" {
+			display = strings.TrimSpace(aliases[peerUser])
+		}
+		score := personMatchScore(query, display, peerUser)
+		if score <= 0 {
+			continue
+		}
+		matches = append(matches, dmNameResolution{
+			Space:   s.Name,
+			User:    peerUser,
+			Display: display,
+			Score:   score,
+		})
+	}
+
+	if len(matches) == 0 {
+		return "", "", "", fmt.Errorf("no direct-message peer matched name %q in the last %d DM spaces; use --email or --user", strings.TrimSpace(rawName), scanLimit)
+	}
+
+	sort.Slice(matches, func(i, j int) bool {
+		if matches[i].Score != matches[j].Score {
+			return matches[i].Score > matches[j].Score
+		}
+		li := strings.ToLower(firstNonEmpty(matches[i].Display, matches[i].User))
+		lj := strings.ToLower(firstNonEmpty(matches[j].Display, matches[j].User))
+		return li < lj
+	})
+
+	if len(matches) > 1 && matches[0].Score == matches[1].Score {
+		choices := make([]string, 0, minInt(3, len(matches)))
+		for i := 0; i < len(matches) && i < 3; i++ {
+			label := firstNonEmpty(matches[i].Display, matches[i].User)
+			choices = append(choices, fmt.Sprintf("%s (%s)", label, matches[i].User))
+		}
+		return "", "", "", fmt.Errorf("name %q is ambiguous; matches: %s; use --email or --user", strings.TrimSpace(rawName), strings.Join(choices, ", "))
+	}
+
+	best := matches[0]
+	return best.User, best.Space, best.Display, nil
+}
+
+func normalizeLookup(raw string) string {
+	return strings.ToLower(strings.TrimSpace(raw))
+}
+
+func personMatchScore(query, displayName, userRef string) int {
+	q := normalizeLookup(query)
+	if q == "" {
+		return 0
+	}
+	display := normalizeLookup(displayName)
+	user := normalizeLookup(strings.TrimPrefix(normalizeUserRef(userRef), "users/"))
+
+	if display != "" {
+		if display == q {
+			return 300
+		}
+		if strings.HasPrefix(display, q) {
+			return 250
+		}
+		if strings.Contains(display, q) {
+			return 200
+		}
+	}
+	if user != "" {
+		if user == q {
+			return 150
+		}
+		if strings.HasPrefix(user, q) {
+			return 120
+		}
+		if strings.Contains(user, q) {
+			return 100
+		}
+	}
+	return 0
+}
+
 func filterMessagesByPerson(messages []ChatMessage, person string) []ChatMessage {
 	q := strings.ToLower(strings.TrimSpace(person))
 	if q == "" {
@@ -1875,27 +2190,6 @@ func filterMessagesByPerson(messages []ChatMessage, person string) []ChatMessage
 		shortID := strings.TrimPrefix(id, "users/")
 		if strings.Contains(name, q) || strings.Contains(id, q) || shortID == q {
 			out = append(out, m)
-		}
-	}
-	return out
-}
-
-func recentSenderNames(messages []ChatMessage, limit int) []string {
-	seen := map[string]struct{}{}
-	out := make([]string, 0, minInt(limit, len(messages)))
-	for _, m := range messages {
-		n := firstNonEmpty(strings.TrimSpace(m.Sender.DisplayName), strings.TrimSpace(m.Sender.Name))
-		if n == "" {
-			continue
-		}
-		key := strings.ToLower(n)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		out = append(out, n)
-		if len(out) >= limit {
-			break
 		}
 	}
 	return out
@@ -2009,6 +2303,7 @@ func runAuthLogin(args []string) error {
 	mode := fs.String("mode", "auto", "auth mode: auto, browser, device")
 	noOpen := fs.Bool("no-open", false, "do not open browser automatically")
 	timeout := fs.Duration("timeout", 3*time.Minute, "browser callback timeout")
+	jsonOut := fs.Bool("json", false, "print JSON")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -2074,6 +2369,20 @@ func runAuthLogin(args []string) error {
 	}
 	if err := saveToken(selectedProfile, StoredToken{Token: *tok, Scopes: scopes, Mode: resolvedMode, SavedAt: time.Now().UTC()}); err != nil {
 		return err
+	}
+
+	if *jsonOut {
+		tokenFile, _ := tokenPath(selectedProfile)
+		out := map[string]any{
+			"profile":               selectedProfile,
+			"mode":                  resolvedMode,
+			"scopes":                scopes,
+			"authenticated":         true,
+			"expiry":                tok.Expiry,
+			"client_secret_present": strings.TrimSpace(secret) != "",
+			"token_path":            tokenFile,
+		}
+		return printJSON(out)
 	}
 
 	fmt.Printf("Logged in profile %q using %s flow.\n", selectedProfile, resolvedMode)
